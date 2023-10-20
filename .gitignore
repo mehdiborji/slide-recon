@@ -5,6 +5,7 @@ __pycache__/
 
 # output related
 pdfs/
+outputs/
 *.ipynb
  
 # C extensions

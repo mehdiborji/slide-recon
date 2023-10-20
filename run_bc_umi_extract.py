@@ -325,13 +325,22 @@ def find_sub_fastq_pairs(indir,sample):
         
     return pairs
 
-def make_count_mtx(indir,sample):
+def make_count_mtx(indir,sample,subset=-1,threshold=0):
+    
+    adata_file = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad'
+    
+    if os.path.isfile(adata_file):
+        print(adata_file,' exists, skip')
+        return
     
     position='quads'
 
     dir_split=f'{indir}/{sample}/split/'
     files=os.listdir(dir_split)
     jsons = sorted([f for f in files if f'{position}.json' in f])
+    
+    jsons = jsons[:subset]
+    print(len(jsons))
 
     data_agg={}
 
@@ -353,6 +362,10 @@ def make_count_mtx(indir,sample):
 
     all_list=[]
     for a_bc in tqdm(a_white.index):
+        
+        if a_bc not in data_agg:
+            print(f'{a_bc} not in data_agg')
+            continue
 
         umi_tbc=data_agg[a_bc]
         umi_bc_dic={}
@@ -365,7 +378,7 @@ def make_count_mtx(indir,sample):
         t_bc_cnt={}
         for k in umi_bc_dic:
             umi_reads=len(umi_bc_dic[k])
-            if umi_reads>2:
+            if umi_reads>threshold:
                 uni_t_bc=set(umi_bc_dic[k])
                 if len(uni_t_bc)>1:
                     bcs,cnts=np.unique(umi_bc_dic[k],return_counts=True)
@@ -380,7 +393,7 @@ def make_count_mtx(indir,sample):
         
     counts_df=AnnData(counts_df,dtype='float32')
     counts_df.X = csr_matrix(counts_df.X)
-    counts_df.write_h5ad(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
+    counts_df.write_h5ad(adata_file,compression='gzip')
 
 #if __name__ == '__main__':
 
@@ -389,7 +402,7 @@ unzip_split_fastq(indir,sample,cores)
 #split_fastq(indir,sample,cores)
 
 ######################################################
-args= find_sub_fastq_pairs(indir,sample)
+args = find_sub_fastq_pairs(indir,sample)
 [print(a) for a in args]
 pool = Pool(int(cores))
 results = pool.starmap(extract_bc_umi_dict, args)
@@ -412,7 +425,8 @@ pool.close()
 pool.join()
 ######################################################
 
-make_count_mtx(indir,sample)
+for s in [1, 2, 3, 4, 6, 8, 10, 13, 16]:
+    make_count_mtx(indir, sample, subset = s, threshold = 0)
 #a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz',index_col=1)#['bc']
 
 #t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz',index_col=1)#['bc']

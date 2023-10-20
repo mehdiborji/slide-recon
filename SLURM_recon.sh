@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -c 16
-#SBATCH --mem=6G
-#SBATCH -t 0:10:00
-#SBATCH -p priority
-#SBATCH -o recon_job_%A.out
+#SBATCH --mem=32G
+#SBATCH -t 1:10:00
+#SBATCH -p short
+#SBATCH -o recon_count_job_%A.out
 
 echo 'indir =' $1
 echo 'sample =' $2
