@@ -23,7 +23,7 @@ sample = args.sample
 subset = args.subset
 threshold = args.threshold
 
-def umap_reduce(indir,sample,subset,threshold,min_t_per_a=1,min_a_per_t=1):
+def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     
     #epoch_list=[int(20*(1.1**(i))) for i in range(60)]
     #ep1 = np.linspace(1,50,50).astype('int').tolist()
@@ -36,26 +36,29 @@ def umap_reduce(indir,sample,subset,threshold,min_t_per_a=1,min_a_per_t=1):
     ep2 = np.linspace(50,50*10,int(50*9/5)+1).astype('int').tolist()
     ep3 = np.linspace(500,500*40,int((500*39)/40)+1).astype('int').tolist()
     epoch_list = np.unique(ep1 + ep2 + ep3 )
+    #epoch_list = np.unique(ep1)
     
-    umap_added_adata = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}_umap_added.h5ad'
+    #umap_added_adata = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}_umap_added.h5ad'
     
-    if os.path.isfile(umap_added_adata):
-        print(umap_added_adata,' exists, skip')
+    umap_dir=f'{indir}/{sample}/umaps_t_{threshold+1}_s_{subset}'
+    
+    if not os.path.exists(umap_dir):
+        os.makedirs(umap_dir)
+        print(f'{umap_dir} created')
+    else:
+        print(f'{umap_dir} already exists')
+
+    epoch_zfilled = f'{str(epoch_list[-1]).zfill(6)}'
+    last_umap_csv = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
+
+    if os.path.isfile(last_umap_csv):
+        print(last_umap_csv,' exists, skip')
         return
 
     adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad')
-    sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=None, inplace=True)
     
     sc.pp.filter_cells(adata, min_genes=min_t_per_a)
     sc.pp.filter_genes(adata, min_cells=min_a_per_t)
-    
-    adata.obs['log10_targets']=np.log10(adata.obs.n_genes)
-    gex=sc.read(f'{indir}/{sample}/{sample}_counts_all_illumina.h5ad')
-    sc.pp.calculate_qc_metrics(gex, percent_top=None, log1p=None, inplace=True)
-    gex.obs['log10_gex_UMI']=np.log10(gex.obs.total_counts)
-    adata.obs=adata.obs.merge(gex.obs['log10_gex_UMI'],how='left', 
-                              left_index=True, right_index=True)
-    print(adata.obs.columns)
 
     reducer = umap.UMAP(metric='cosine',
                     n_neighbors = 25, 
@@ -69,15 +72,20 @@ def umap_reduce(indir,sample,subset,threshold,min_t_per_a=1,min_a_per_t=1):
                     # local_connectivity = 30,
                     learning_rate = 1)
     embedding = reducer.fit_transform(adata.X)
-    
+
     for i,e in enumerate(epoch_list):
-        #print(e)
-        epoch_xy=reducer.embedding_list_[i]
-        adata.obs[[f'ep_{e}_x',f'ep_{e}_y']]=epoch_xy
+
+        epoch_zfilled = f'{str(e).zfill(6)}'
+        epoch_umap = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
+
+        np.savetxt(epoch_umap, reducer.embedding_list_[0], delimiter=',')
+    
+    adata.write_h5ad(f'{umap_dir}/{sample}_counts_filtered.h5ad',compression='gzip')
+
     #adata_epochs=[col.split('_')[1] for col in adata.obs.columns if '_x' in col]    
     #sns.scatterplot(data=adata.obs,x='log10_mm10_UMI',y='log10_targets',s=1)
     #sns.histplot(adata[adata.obs.log10_mm10_UMI.isna()].obs.log10_targets)
-    adata.write_h5ad(umap_added_adata,compression='gzip')
+    #adata.write_h5ad(umap_csv,compression='gzip')
     
 def get_umap_limits(indir,sample,subset,threshold):
     
@@ -126,14 +134,15 @@ def save_umap_epoch_from_adata(indir,sample,epoch,crop_coord,subset,threshold):
     plt.savefig(epoch_png,bbox_inches='tight');
 
 if __name__ == '__main__':
+    
     umap_reduce(indir,sample,subset,threshold)
 
-    epoch_list,crop_coord = get_umap_limits(indir,sample,subset,threshold)
+    #epoch_list,crop_coord = get_umap_limits(indir,sample,subset,threshold)
 
-    args=[(indir,sample,epoch,crop_coord,subset,threshold) for epoch in epoch_list]
+    #args=[(indir,sample,epoch,crop_coord,subset,threshold) for epoch in epoch_list]
 
-    [print(a) for a in args[:10]]
-    pool = Pool(int(cores))
-    results = pool.starmap(save_umap_epoch_from_adata, args)
-    pool.close()
+    #[print(a) for a in args[:10]]
+    #pool = Pool(int(cores))
+    #results = pool.starmap(save_umap_epoch_from_adata, args)
+    #pool.close()
     #pool.join()
