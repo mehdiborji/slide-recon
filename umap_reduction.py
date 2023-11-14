@@ -32,11 +32,20 @@ def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     #ep4 = np.linspace(1800,1800*6,int((1800*5)/8)+1).astype('int').tolist()
     #epoch_list = np.unique(ep1 + ep2 + ep3 + ep4)
     
-    ep1 = np.linspace(1,50,50).astype('int').tolist()
-    ep2 = np.linspace(50,50*10,int(50*9/5)+1).astype('int').tolist()
-    ep3 = np.linspace(500,500*40,int((500*39)/40)+1).astype('int').tolist()
-    epoch_list = np.unique(ep1 + ep2 + ep3 )
+    #ep1 = np.linspace(1,50,50).astype('int').tolist()
+    #ep2 = np.linspace(50,50*10,int(50*9/5)+1).astype('int').tolist()
+    #ep3 = np.linspace(500,500*40,int((500*39)/40)+1).astype('int').tolist()
+    #epoch_list = np.unique(ep1 + ep2 + ep3 )
     #epoch_list = np.unique(ep1)
+    
+    ep1 = np.linspace(1,50,50).astype('int').tolist()
+    #ep2 = np.linspace(50,50*10,int(50*9/5)+1).astype('int').tolist()
+    ep2 = np.linspace(50,20000,int((20000-50)/5)+1).astype('int').tolist()
+    #ep2 = np.linspace(50,10800,int((10800-50)/5)+1).astype('int').tolist()
+
+    #ep2 = np.linspace(50,10000,int((20000-50)/5)+1).astype('int').tolist()
+    #epoch_list = np.unique(ep1 + ep2 + ep3 )
+    epoch_list = np.unique(ep1 + ep2)
     
     #umap_added_adata = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}_umap_added.h5ad'
     
@@ -56,9 +65,9 @@ def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
         return
 
     adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad')
-    
     sc.pp.filter_cells(adata, min_genes=min_t_per_a)
     sc.pp.filter_genes(adata, min_cells=min_a_per_t)
+    adata.obs.to_csv(f'{indir}/{sample}/umaps_t_{threshold+1}_s_{subset}/{sample}_barcodes.csv')
 
     reducer = umap.UMAP(metric='cosine',
                     n_neighbors = 25, 
@@ -74,13 +83,9 @@ def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     embedding = reducer.fit_transform(adata.X)
 
     for i,e in enumerate(epoch_list):
-
         epoch_zfilled = f'{str(e).zfill(6)}'
         epoch_umap = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
-
-        np.savetxt(epoch_umap, reducer.embedding_list_[0], delimiter=',')
-    
-    adata.write_h5ad(f'{umap_dir}/{sample}_counts_filtered.h5ad',compression='gzip')
+        np.savetxt(epoch_umap, reducer.embedding_list_[i], delimiter=',')
 
     #adata_epochs=[col.split('_')[1] for col in adata.obs.columns if '_x' in col]    
     #sns.scatterplot(data=adata.obs,x='log10_mm10_UMI',y='log10_targets',s=1)

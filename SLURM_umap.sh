@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -c 16
-#SBATCH --mem=40G
-#SBATCH -t 2:40:00
+#SBATCH --mem=6G
+#SBATCH -t 1:40:00
 #SBATCH -p short
 #SBATCH -o umap_job_%A.out
 

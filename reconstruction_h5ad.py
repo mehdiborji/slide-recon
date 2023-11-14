@@ -61,8 +61,6 @@ def get_pa(pos_truth,pos_recon):
     return disparity, mtx1_scaled, mtx2_scaled, dist
 
 
-
-
 # sample info
 date = '230927'
 sample = 'c58_4'

@@ -4,58 +4,20 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import edlib
-import argparse
 import csv
 from pathlib import Path
 import json
 import subprocess
-from multiprocessing import Pool
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.sparse import csr_matrix
 from anndata import AnnData
-from matplotlib.backends.backend_pdf import PdfPages
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--cores', type=str)
-parser.add_argument('--indir', type=str)
-parser.add_argument('--sample', type=str)
-parser.add_argument('--limit', default=False, action='store_true')
-#parser.add_argument('--outdir', type=str)
-#parser.add_argument('--barcodes', type=str)
-#parser.add_argument('--split', default=False, action='store_true')
-#parser.add_argument('--mode', type=str)
-
-args = parser.parse_args()
-
-cores = args.cores
-indir = args.indir
-sample = args.sample
-limit = args.limit
-
-#outdir = args.outdir
-#barcodes = args.barcodes
-#split = args.split
-#mode = args.mode
 
 UP_seq='TCTTCAGCGTTCCCGAGA'
 ad_seq=[('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
 #print(UP_seq)
-
-"""
-fastq_dir='/Users/mborji/reconstruct/230803/fastq/'
-
-fastq_dir='/Users/mborji/reconstruct/all_fastq/'
-
-files=sorted(os.listdir(fastq_dir))
-
-samples=np.unique([f.split('_R')[0] for f in files if 'fastq.gz' in f])
-
-sample=samples[0]
-
-"""
 
 N_read_extract=100000
 
@@ -100,13 +62,12 @@ def unzip_split_fastq(indir,sample,cores):
         
         #subprocess.call(['pigz', '-f', f'{indir}/{sample}/split/*.fastq'])
 
-        
 def seq_counter(seq_dict,seq_instance):
     
     if seq_dict.get(seq_instance) is None:
         seq_dict[seq_instance] = 1
     else:
-        seq_dict[seq_instance]+= 1
+        seq_dict[seq_instance] += 1
 
 def quad_dict_store(quad_dict,quad_key,quad_items):
     
@@ -116,37 +77,52 @@ def quad_dict_store(quad_dict,quad_key,quad_items):
         quad_dict[quad_key].extend([quad_items])
         
 def UP_edit_pass(read_seq,max_dist):
-    edit=edlib.align(read_seq[8:26],UP_seq,'HW','path',max_dist,ad_seq)
-    boolean_pass = edit['editDistance']>=0 and edit['editDistance']<=max_dist
-    return(boolean_pass)
+    edit = edlib.align(read_seq[8:26],UP_seq,'HW','path',max_dist,ad_seq)
+    ed_dist = edit['editDistance']
+    boolean_pass = ed_dist >= 0 and ed_dist <= max_dist
+    return(boolean_pass, ed_dist)
 
 def seq_slice(read_seq):
     bc = read_seq[:8]+read_seq[26:32]
     umi = read_seq[33:41]
-    return(bc,umi)
+    return(bc, umi)
 
 def outfile_from_in(infile,suffix):
-    split_root=os.path.dirname(infile)
-    split_part=os.path.basename(infile).split('.')[1]
-    outfile=f'{split_root}/{sample}.{split_part}_{suffix}.json'
-    return(split_root,split_part,outfile)
-
-def extract_bc_umi_dict(R1_fastq,R2_fastq):
     
-    i=0;max_dist=2
+    split_root = os.path.dirname(infile)
+    sample = os.path.dirname(split_root)
+    split_part = os.path.basename(infile).split('.')[1]
+    outfile = f'{split_root}/{sample}.{split_part}_{suffix}.json'
+    #print(split_part,split_root,sample,outfile)
+    
+    return(split_root, split_part, outfile)
 
-    split_root, split_part, targets_json=outfile_from_in(R1_fastq,'targets')
-    split_root, split_part, anchors_json=outfile_from_in(R1_fastq,'anchors')
+def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
+    
+    i = 0
+    max_dist = 3
+    
+    split_root, split_part, anchors_json = outfile_from_in(R1_fastq,'anchors')
+    split_root, split_part, targets_json = outfile_from_in(R1_fastq,'targets')
+    
+    split_root, split_part, anchor_edits_json = outfile_from_in(R1_fastq,'anchor_edits')
+    split_root, split_part, target_edits_json = outfile_from_in(R1_fastq,'target_edits')
+    
+    split_root, split_part, anchors_umi_len_json = outfile_from_in(R1_fastq,'anchors_umi_len')
+    split_root, split_part, targets_umi_len_json = outfile_from_in(R1_fastq,'targets_umi_len')
     
     if os.path.isfile(anchors_json):
         print(anchors_json,' exists, skip')
         return
-    #if os.path.isfile(anchors_json):
-    #    print(anchors_json,' exists, skip extracting')
-    #    return
     
-    targets_dict = {}
     anchors_dict = {}
+    targets_dict = {}
+    
+    anchor_edits_dict = {}
+    target_edits_dict = {}
+    
+    anchors_umi_len_dict = {}
+    targets_umi_len_dict = {}
     
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
@@ -154,20 +130,64 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq):
             seq1 = r1.sequence
             seq2 = r2.sequence
             
-            if UP_edit_pass(seq1,max_dist) and UP_edit_pass(seq2,max_dist):
+            edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+            edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+            
+            seq_counter(anchor_edits_dict,edit1)
+            seq_counter(target_edits_dict,edit2)
+            
+            if edit_pass1 and edit_pass2:
                 
-                a_bc,a_umi=seq_slice(seq1)
-                t_bc,t_umi=seq_slice(seq2)
-                quad_dict_store(targets_dict,t_bc,t_umi)
-                quad_dict_store(anchors_dict,a_bc,a_umi)
+                a_bc, a_umi = seq_slice(seq1)
+                t_bc, t_umi = seq_slice(seq2)
+                
+                seq_counter(anchors_umi_len_dict, len(a_umi))
+                seq_counter(targets_umi_len_dict, len(t_umi))
+                
+                quad_dict_store(anchors_dict, a_bc, a_umi)
+                quad_dict_store(targets_dict, t_bc, t_umi)
                 
             if i>N_read_extract and limit: break
             
-    with open(targets_json, 'w') as json_file:
-        json.dump(targets_dict, json_file)
+    with open(anchor_edits_json, 'w') as json_file:
+        json.dump(anchor_edits_dict, json_file)
+    with open(target_edits_json, 'w') as json_file:
+        json.dump(target_edits_dict, json_file)
+        
+    with open(anchors_umi_len_json, 'w') as json_file:
+        json.dump(anchors_umi_len_dict, json_file)
+    with open(targets_umi_len_json, 'w') as json_file:
+        json.dump(targets_umi_len_dict, json_file)
+        
     with open(anchors_json, 'w') as json_file:
         json.dump(anchors_dict, json_file)
+    with open(targets_json, 'w') as json_file:
+        json.dump(targets_dict, json_file)
 
+def aggregate_stat_dicts(indir,sample,position): 
+    
+    dir_split=f'{indir}/{sample}/split/'
+    files=os.listdir(dir_split)
+    jsons = sorted([f for f in files if f'{position}.json' in f])
+    
+    agg_read_csv=f'{indir}/{sample}/{sample}_agg_cnt_{position}.csv'
+    
+    if os.path.isfile(agg_read_csv):
+        print(agg_read_csv,' exists, skip')
+        return
+    
+    data_agg={}
+    for i in tqdm(range(len(jsons))):
+        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
+            data_sub = json.load(json_file)
+            for k in data_sub:
+                if data_agg.get(k) is not None:
+                    data_agg[k] += data_sub[k]
+                else:
+                    data_agg[k]=data_sub[k]
+                    
+    pd.Series(data_agg).to_csv(agg_read_csv)
+    
 def aggregate_dicts(indir,sample,position): 
     
     dir_split=f'{indir}/{sample}/split/'
@@ -196,7 +216,7 @@ def aggregate_dicts(indir,sample,position):
     for k in tqdm(data_agg):
         reads=len(data_agg[k])
         total_reads+=reads
-        if reads>=5:
+        if reads>=2:
             read_dict[k]=reads
             umi_dict[k]=len(set(data_agg[k]))
             
@@ -206,7 +226,7 @@ def aggregate_dicts(indir,sample,position):
     read_cnt.to_csv(agg_read_csv)
     umi_cnt.to_csv(agg_read_csv.replace('read','umi'))
     
-def whitelist_rankplot(indir,sample,position):
+def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=100000):
     
     #dup_rate_file=f'{indir}/{sample}/{sample}_{position}_duprate.pdf'
     #if os.path.isfile(dup_rate_file):
@@ -223,7 +243,7 @@ def whitelist_rankplot(indir,sample,position):
     agg_bcs['dup_rate']=agg_bcs['read_cnt']/agg_bcs['umi_cnt']
     agg_bcs=agg_bcs.sort_values(by='umi_cnt',ascending=False)
     
-    sub=agg_bcs.iloc[20:100000].copy()  # select top 100k bc except first 20
+    sub=agg_bcs.iloc[20:max_expected_barcodes].copy()  # select top 100k bc except first 20
     x = np.histogram(sub.log10_umi_cnt, 100) # fit a histogram
     smooth = gaussian_filter1d(x[0], 3) # smooth histogram
     peak_idx,_=find_peaks(-smooth) # find the local minimum
@@ -275,7 +295,7 @@ def whitelist_rankplot(indir,sample,position):
     qc_pdfs.savefig(bbox_inches='tight')
     #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
 
-def extract_quad_dict(indir,sample,part):
+def extract_quad_dict(indir,sample,part,limit):
     
     i = 0;max_dist = 2;quad_dict = {}
     
@@ -314,14 +334,14 @@ def extract_quad_dict(indir,sample,part):
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)
         
-def find_sub_fastq_pairs(indir,sample):
+def find_sub_fastq_pairs(indir,sample,limit):
 
     R1s=sorted([f for f in os.listdir(f'{indir}/{sample}/split/') if '_R1_001.part' in f])
     R2s=[f.replace('_R1_','_R2_') for f in R1s]
     pairs=[]
 
     for i in range(len(R1s)): 
-        pairs.append((f'{indir}/{sample}/split/{R1s[i]}',f'{indir}/{sample}/split/{R2s[i]}'))
+        pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
         
     return pairs
 
@@ -335,14 +355,14 @@ def make_count_mtx(indir,sample,subset=-1,threshold=0):
     
     position='quads'
 
-    dir_split=f'{indir}/{sample}/split/'
-    files=os.listdir(dir_split)
+    dir_split = f'{indir}/{sample}/split/'
+    files = os.listdir(dir_split)
     jsons = sorted([f for f in files if f'{position}.json' in f])
     
     jsons = jsons[:subset]
     print(len(jsons))
 
-    data_agg={}
+    data_agg = {}
 
     for i in tqdm(range(len(jsons))):
         with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
@@ -360,90 +380,37 @@ def make_count_mtx(indir,sample,subset=-1,threshold=0):
     counts_np = np.zeros( (len(a_white),len(t_white)) )
     counts_df = pd.DataFrame(counts_np, index=a_white.index, columns=t_white.index)
 
-    all_list=[]
+    all_list = []
     for a_bc in tqdm(a_white.index):
         
         if a_bc not in data_agg:
             print(f'{a_bc} not in data_agg')
             continue
 
-        umi_tbc=data_agg[a_bc]
-        umi_bc_dic={}
+        umi_tbc = data_agg[a_bc]
+        umi_bc_dic = {}
         for a in umi_tbc:
             if umi_bc_dic.get(a[0]) is not None:
                 umi_bc_dic[a[0]].append(a[1])
             else:
-                umi_bc_dic[a[0]]=[a[1]]
+                umi_bc_dic[a[0]] = [a[1]]
 
         t_bc_cnt={}
         for k in umi_bc_dic:
-            umi_reads=len(umi_bc_dic[k])
-            if umi_reads>threshold:
+            umi_reads = len(umi_bc_dic[k])
+            if umi_reads > threshold:
                 uni_t_bc=set(umi_bc_dic[k])
-                if len(uni_t_bc)>1:
-                    bcs,cnts=np.unique(umi_bc_dic[k],return_counts=True)
-                    if np.max(cnts/umi_reads)>.74:
-                        t_bc=bcs[np.argmax(cnts/umi_reads)]
+                if len(uni_t_bc) > 1:
+                    bcs, cnts = np.unique(umi_bc_dic[k],return_counts=True)
+                    if np.max(cnts/umi_reads) > .74: # the concordance to accept the UMI 2/2, 3/3, 3/4, 4/5 or better 
+                        t_bc = bcs[np.argmax(cnts/umi_reads)]
                         seq_counter(t_bc_cnt,t_bc)
                 else:
-                    t_bc=list(uni_t_bc)[0]
+                    t_bc = list(uni_t_bc)[0]
                     seq_counter(t_bc_cnt,t_bc)
 
         counts_df.loc[a_bc,list(t_bc_cnt.keys())]=list(t_bc_cnt.values())
         
-    counts_df=AnnData(counts_df,dtype='float32')
+    counts_df = AnnData(counts_df,dtype='float32')
     counts_df.X = csr_matrix(counts_df.X)
     counts_df.write_h5ad(adata_file,compression='gzip')
-
-#if __name__ == '__main__':
-
-unzip_split_fastq(indir,sample,cores)
-
-#split_fastq(indir,sample,cores)
-
-######################################################
-args = find_sub_fastq_pairs(indir,sample)
-[print(a) for a in args]
-pool = Pool(int(cores))
-results = pool.starmap(extract_bc_umi_dict, args)
-pool.close()
-pool.join()
-######################################################
-aggregate_dicts(indir,sample,'anchors')
-aggregate_dicts(indir,sample,'targets')
-
-qc_pdfs = PdfPages(f'{indir}/{sample}/{sample}_QC.pdf')
-whitelist_rankplot(indir,sample,'anchors')
-whitelist_rankplot(indir,sample,'targets')
-qc_pdfs.close()
-######################################################
-args=[(indir,sample,i) for i in range(1,int(cores)+1)]
-[print(a) for a in args]
-pool = Pool(int(cores))
-results = pool.starmap(extract_quad_dict, args)
-pool.close()
-pool.join()
-######################################################
-
-for s in [1, 2, 3, 4, 6, 8, 10, 13, 16]:
-    make_count_mtx(indir, sample, subset = s, threshold = 0)
-#a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz',index_col=1)#['bc']
-
-#t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz',index_col=1)#['bc']
-
-"""
-targets_json=outfile_from_in(args[0][0],'targets')
-
-if os.path.isfile(targets_json):
-    print(targets_json,' targets json exist, skip extracting')
-else:
-    print(targets_json,' splitted fastq does not exist')
-    
-
-pool = Pool(int(cores/2))
-#results = pool.starmap(extract_bc_umi, args)
-results = pool.starmap(extract_bc_umi_dict, args)
-pool.close()
-pool.join()
-
-"""
