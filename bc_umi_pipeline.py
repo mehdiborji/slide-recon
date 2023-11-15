@@ -61,7 +61,6 @@ bc_umi_utils.aggregate_stat_dicts(indir,sample,'target_edits')
 bc_umi_utils.aggregate_stat_dicts(indir,sample,'anchors_umi_len')
 bc_umi_utils.aggregate_stat_dicts(indir,sample,'targets_umi_len')
 
-
 ######################################################
 qc_pdf_file = f'{indir}/{sample}/{sample}_QC.pdf'
 
