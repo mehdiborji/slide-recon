@@ -454,7 +454,7 @@ def make_count_mtx_batch(indir,sample,batch,threshold=0):
     
     a_white = list(data_agg.keys())
     counts_np = np.zeros( (len(a_white),len(t_white)) )
-    counts_df = pd.DataFrame(counts_np, index=a_white, columns=t_white.index)
+    counts_df = pd.DataFrame(counts_np, index=a_white, columns=t_white.index,dtype='float32')
 
     all_list = []
     for a_bc in tqdm(a_white):
@@ -465,6 +465,8 @@ def make_count_mtx_batch(indir,sample,batch,threshold=0):
 
         umi_tbc = data_agg[a_bc]
         umi_bc_dic = {}
+        #short_umis = []
+        #umi_lens = []
         for a in umi_tbc:
             if len(a[0])==8:
                 if umi_bc_dic.get(a[0]) is not None:
@@ -472,7 +474,10 @@ def make_count_mtx_batch(indir,sample,batch,threshold=0):
                 else:
                     umi_bc_dic[a[0]] = [a[1]]
             #else:
-            #    print(a[0])
+            #    short_umis.append(a[0])
+            #    umi_lens.append(len(a[0]))
+        #print(len(short_umis))
+        #print(np.unique(umi_lens,return_counts=True))
 
         t_bc_cnt={}
         for k in umi_bc_dic:
@@ -492,121 +497,13 @@ def make_count_mtx_batch(indir,sample,batch,threshold=0):
         
     print('making AnnData')
     counts_df = AnnData(counts_df,dtype='float32')
-    print('writing AnnData')
-    counts_df.write_h5ad(adata_file_nonsparse,compression='gzip')
+    #print('writing AnnData')
+    #counts_df.write_h5ad(adata_file_nonsparse,compression='gzip')
     print('making sparse AnnData')
     counts_df.X = csr_matrix(counts_df.X)
     print('writing sparse AnnData')
     counts_df.write_h5ad(adata_file,compression='gzip')
-    
-def examine_aggregate_barcode_batches(indir,sample):
-    
-    dir_split = f'{indir}/{sample}/split/'
-    files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if 'batch_' in f and 'part_' in f])
-    
-    print(len(jsons))
-    #return jsons
-    
-    all_batches = np.unique([json.split('batch')[1] for json in jsons])
-    
-    all_bcs=[]
-    for b in all_batches:
-        
-        batch_jsons = ([json for json in jsons if b in json])
-        
-        agg_batch_json = f'{sample}.batch{b}'
-        
-        agg_batch_json_file = f'{dir_split}{agg_batch_json}'
-        
-        print(agg_batch_json_file)
-        
-        with open(agg_batch_json_file, 'r') as json_file:
-            data_sub = json.load(json_file)
-            print(len(data_sub))
-            batch_csv = agg_batch_json_file.replace('.json','.csv')
-            pd.Series(list(data_sub.keys())).to_csv(batch_csv)
-            #all_bcs.append(list(data_sub.keys()))
-            
-    #return(all_bcs)
-def store_aggregate_barcode_batches(indir,sample):
-    
-    dir_split = f'{indir}/{sample}/split/'
-    files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if 'batch_' in f and 'part_' in f])
-    
-    print(len(jsons))
-    #return jsons
-    
-    all_batches = np.unique([json.split('batch')[1] for json in jsons])
-    
-    all_bcs=[]
-    for b in all_batches:
-        
-        batch_jsons = ([json for json in jsons if b in json])
-        
-        agg_batch_json = f'{sample}.batch{b}'
-        
-        agg_batch_json_file = f'{dir_split}{agg_batch_json}'
-        
-        batch_csv = agg_batch_json_file.replace('.json','.csv')
-        
-        all_bcs.append(pd.read_csv(batch_csv,index_col=0))
-            
-    return(all_bcs)
-        
-        
-"""
 
-
-
-    dir_split = f'{indir}/{sample}/split/'
-    files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if f'{position}.json' in f])
-    
-    jsons = jsons[:subset]
-    print(len(jsons))
-
-    data_agg = {}
-    
-    sub_batch_N = int(len(a_white.index)/10000)+1
-
-    anchors_split = np.array_split(sorted(a_white.index), sub_batch_N)
-    
-    for i in tqdm(range(len(jsons))):
-        
-        part_json_file = f'{dir_split}{jsons[i]}'
-        
-        with open(part_json_file, 'r') as json_file:
-            
-            data_sub = json.load(json_file)
-            print(jsons[i],len(data_sub))
-
-            for j in range(sub_batch_N):
-                batch = str(j+1).zfill(3)
-                batch_json = part_json_file.replace('quads.json',f'batch_{batch}_quads.json')
-                
-                sub_agg={}
-                for a in anchors_split[j]:
-                    if a in data_sub:
-                        sub_agg[a] = data_sub[a]
-                        
-                print(batch_json,j,len(sub_agg))
-                with open(batch_json, 'w') as json_file:
-                    json.dump(sub_agg, json_file)
-    #return
-
-    for i in tqdm(range(len(jsons))):
-        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
-            data_sub = json.load(json_file)
-            print(jsons[i],len(data_sub))
-            for k in data_sub:
-                if data_agg.get(k) is not None:
-                    data_agg[k].extend(data_sub[k])
-                else:
-                    data_agg[k]=data_sub[k]
-    return data_agg
-"""             
 def make_count_mtx(indir,sample,subset=-1,threshold=0):
     
     adata_file = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad'

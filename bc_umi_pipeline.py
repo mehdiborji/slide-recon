@@ -85,7 +85,13 @@ pool.join()
 ######################################################
 
 #for s in [1, 2, 3, 4, 6, 8, 10, 13, 16]:
-for s in [16, 8, 4]:
-    bc_umi_utils.make_count_mtx(indir, sample, subset = s, threshold = 0)
+#for s in [16, 8, 4]:
+#    bc_umi_utils.make_count_mtx(indir, sample, subset = s, threshold = 0)
 
 ######################################################
+args=[(indir, sample, i) for i in range(1, 21)]
+[print(a) for a in args]
+pool = Pool(10)
+results = pool.starmap(bc_umi_utils.make_count_mtx_batch, args)
+pool.close()
+pool.join()
