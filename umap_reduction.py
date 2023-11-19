@@ -12,17 +12,56 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cores', type=str)
 parser.add_argument('--indir', type=str)
 parser.add_argument('--sample', type=str)
-parser.add_argument('--subset', type=int)
-parser.add_argument('--threshold', type=int)
+parser.add_argument('--adata_name', type=str)
+#parser.add_argument('--subset', type=int)
+#parser.add_argument('--threshold', type=int)
 
 args = parser.parse_args()
 
 cores = args.cores
 indir = args.indir
 sample = args.sample
-subset = args.subset
-threshold = args.threshold
+adata_name = args.adata_name
+#subset = args.subset
+#threshold = args.threshold
 
+def umap_reduce_batches(indir,sample,adata_name):
+    
+    epoch_list = np.linspace(100,5000,int((5000-100)/100)+1).astype('int').tolist()
+    
+    umap_dir=f'{indir}/{sample}/{adata_name}'
+    if not os.path.exists(umap_dir):
+        os.makedirs(umap_dir)
+        print(f'{umap_dir} created')
+    else:
+        print(f'{umap_dir} already exists')
+    epoch_zfilled = f'{str(epoch_list[-1]).zfill(6)}'
+    last_umap_csv = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
+    if os.path.isfile(last_umap_csv):
+        print(last_umap_csv,' exists, skip')
+        return
+    #adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
+    adata = sc.read(f'{indir}/{sample}/{adata_name}.h5ad')
+    #sc.pp.log1p(adata)
+    reducer = umap.UMAP(metric='cosine',
+                    n_neighbors = 25, 
+                    min_dist = .99, 
+                    low_memory = False, 
+                    n_components = 2, 
+                    # random_state=0, 
+                    verbose = True, 
+                    n_epochs = epoch_list,
+                    # output_dens = True,
+                    # local_connectivity = 30,
+                    learning_rate = 1)
+    embedding = reducer.fit_transform(adata.X)
+
+    for i,e in enumerate(epoch_list):
+        epoch_zfilled = f'{str(e).zfill(6)}'
+        epoch_umap = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
+        np.savetxt(epoch_umap, reducer.embedding_list_[i], delimiter=',')
+        
+        
 def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     
     #epoch_list=[int(20*(1.1**(i))) for i in range(60)]
@@ -140,7 +179,9 @@ def save_umap_epoch_from_adata(indir,sample,epoch,crop_coord,subset,threshold):
 
 if __name__ == '__main__':
     
-    umap_reduce(indir,sample,subset,threshold)
+    #umap_reduce(indir,sample,subset,threshold)
+    
+    umap_reduce_batches(indir,sample,adata_name)
 
     #epoch_list,crop_coord = get_umap_limits(indir,sample,subset,threshold)
 
