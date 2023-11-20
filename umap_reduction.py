@@ -13,6 +13,9 @@ parser.add_argument('--cores', type=str)
 parser.add_argument('--indir', type=str)
 parser.add_argument('--sample', type=str)
 parser.add_argument('--adata_name', type=str)
+parser.add_argument('--metric', type=str)
+parser.add_argument('--n_neighbors', type=int)
+parser.add_argument('--min_dist', type=float)
 #parser.add_argument('--subset', type=int)
 #parser.add_argument('--threshold', type=int)
 
@@ -22,14 +25,17 @@ cores = args.cores
 indir = args.indir
 sample = args.sample
 adata_name = args.adata_name
+metric = args.metric
+n_neighbors = args.n_neighbors
+min_dist = args.min_dist
 #subset = args.subset
 #threshold = args.threshold
 
-def umap_reduce_batches(indir,sample,adata_name):
+def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist):
     
-    epoch_list = np.linspace(100,5000,int((5000-100)/100)+1).astype('int').tolist()
+    epoch_list = np.linspace(400,5000,int((5000-400)/200)+1).astype('int').tolist()
     
-    umap_dir=f'{indir}/{sample}/{adata_name}'
+    umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}'
     if not os.path.exists(umap_dir):
         os.makedirs(umap_dir)
         print(f'{umap_dir} created')
@@ -43,12 +49,11 @@ def umap_reduce_batches(indir,sample,adata_name):
     #adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
     adata = sc.read(f'{indir}/{sample}/{adata_name}.h5ad')
     #sc.pp.log1p(adata)
-    reducer = umap.UMAP(metric='cosine',
-                    n_neighbors = 25, 
-                    min_dist = .99, 
+    reducer = umap.UMAP(metric = metric,
+                    n_neighbors = n_neighbors, 
+                    min_dist = min_dist, 
                     low_memory = False, 
-                    n_components = 2, 
-                    # random_state=0, 
+                    n_components = 2,
                     verbose = True, 
                     n_epochs = epoch_list,
                     # output_dens = True,
@@ -181,7 +186,7 @@ if __name__ == '__main__':
     
     #umap_reduce(indir,sample,subset,threshold)
     
-    umap_reduce_batches(indir,sample,adata_name)
+    umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist)
 
     #epoch_list,crop_coord = get_umap_limits(indir,sample,subset,threshold)
 
