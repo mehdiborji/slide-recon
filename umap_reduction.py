@@ -33,7 +33,10 @@ min_dist = args.min_dist
 
 def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist):
     
-    epoch_list = np.linspace(400,5000,int((5000-400)/200)+1).astype('int').tolist()
+    begin_epoch = 200
+    end_epoch = 40000
+    step = 200
+    epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
     
     umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}'
     if not os.path.exists(umap_dir):
@@ -65,7 +68,6 @@ def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist
         epoch_zfilled = f'{str(e).zfill(6)}'
         epoch_umap = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
         np.savetxt(epoch_umap, reducer.embedding_list_[i], delimiter=',')
-        
         
 def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     
