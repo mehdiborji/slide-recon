@@ -84,14 +84,23 @@ pool.close()
 pool.join()
 ######################################################
 
+bc_umi_utils.save_barcode_batch_json(indir,sample)
+bc_umi_utils.aggregate_barcode_batches(indir,sample)
+                                     
+######################################################
+
 #for s in [1, 2, 3, 4, 6, 8, 10, 13, 16]:
 #for s in [16, 8, 4]:
 #    bc_umi_utils.make_count_mtx(indir, sample, subset = s, threshold = 0)
 
 ######################################################
-args=[(indir, sample, i) for i in range(1, 21)]
-[print(a) for a in args]
-pool = Pool(10)
+
+batches = sorted([f.split('_')[-2] for f in os.listdir(f'{indir}/{sample}/split/') if 'batch' in f and 'part' not in f])
+len_batches = len(batches)
+args = [(indir, sample, i) for i in range(1, len_batches+1)]
+args = args[::-1]
+#[print(a) for a in args]
+pool = Pool(8)
 results = pool.starmap(bc_umi_utils.make_count_mtx_batch, args)
 pool.close()
 pool.join()

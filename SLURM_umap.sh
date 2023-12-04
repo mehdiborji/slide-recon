@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -c 20
-#SBATCH --mem=8G
+#SBATCH --mem=20G
 #SBATCH -t 18:00:00
 #SBATCH -p priority
 #SBATCH -o umap_job_%A.out

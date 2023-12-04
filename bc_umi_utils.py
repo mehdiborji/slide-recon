@@ -77,7 +77,7 @@ def quad_dict_store(quad_dict,quad_key,quad_items):
         quad_dict[quad_key].extend([quad_items])
         
 def UP_edit_pass(read_seq,max_dist):
-    edit = edlib.align(read_seq[8:26],UP_seq,'HW','path',max_dist,ad_seq)
+    edit = edlib.align(read_seq[8:26],UP_seq,'HW','distance',max_dist)
     ed_dist = edit['editDistance']
     boolean_pass = ed_dist >= 0 and ed_dist <= max_dist
     return(boolean_pass, ed_dist)
@@ -100,7 +100,7 @@ def outfile_from_in(infile,suffix):
 def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
     
     i = 0
-    max_dist = 3
+    max_dist = 2
     
     split_root, split_part, anchors_json = outfile_from_in(R1_fastq,'anchors')
     split_root, split_part, targets_json = outfile_from_in(R1_fastq,'targets')
@@ -126,28 +126,38 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
     
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
+            
             i+=1
+            
             seq1 = r1.sequence
             seq2 = r2.sequence
             
-            edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-            edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+            len1 = len(seq1)
+            len2 = len(seq2)
             
-            seq_counter(anchor_edits_dict,edit1)
-            seq_counter(target_edits_dict,edit2)
+            polyT_cnt = seq1[-8:].count('T')
+            polyA_cnt = seq2[-8:].count('A')
             
-            if edit_pass1 and edit_pass2:
+            if len_1 == 50 and len_2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
                 
-                a_bc, a_umi = seq_slice(seq1)
-                t_bc, t_umi = seq_slice(seq2)
-                
-                seq_counter(anchors_umi_len_dict, len(a_umi))
-                seq_counter(targets_umi_len_dict, len(t_umi))
-                
-                quad_dict_store(anchors_dict, a_bc, a_umi)
-                quad_dict_store(targets_dict, t_bc, t_umi)
-                
-            if i>N_read_extract and limit: break
+                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                seq_counter(anchor_edits_dict,edit1)
+                seq_counter(target_edits_dict,edit2)
+
+                if edit_pass1 and edit_pass2:
+
+                    a_bc, a_umi = seq_slice(seq1)
+                    t_bc, t_umi = seq_slice(seq2)
+
+                    seq_counter(anchors_umi_len_dict, len(a_umi))
+                    seq_counter(targets_umi_len_dict, len(t_umi))
+
+                    quad_dict_store(anchors_dict, a_bc, a_umi)
+                    quad_dict_store(targets_dict, t_bc, t_umi)
+
+                if i>N_read_extract and limit: break
             
     with open(anchor_edits_json, 'w') as json_file:
         json.dump(anchor_edits_dict, json_file)
@@ -345,7 +355,7 @@ def find_sub_fastq_pairs(indir,sample,limit):
         
     return pairs
 
-def save_barcode_batch_json(indir,sample,subset=1):
+def save_barcode_batch_json(indir,sample):
     
     position='quads'
     
@@ -353,20 +363,26 @@ def save_barcode_batch_json(indir,sample,subset=1):
 
     dir_split = f'{indir}/{sample}/split/'
     files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if f'{position}.json' in f])
+    jsons = sorted([f for f in files if f'{position}.json' in f and 'batch_' not in f])
     
-    jsons = jsons[:subset]
+    #jsons = jsons#[:subset]
     print(len(jsons))
 
     data_agg = {}
     
     sub_batch_N = int(len(a_white.index)/10000)+1
 
-    anchors_split = np.array_split(sorted(a_white.index), sub_batch_N)
+    anchors_split = np.array_split(sorted(a_white.index), sub_batch_N)  
     
     for i in tqdm(range(len(jsons))):
         
         part_json_file = f'{dir_split}{jsons[i]}'
+        
+        batch = str(sub_batch_N).zfill(3)
+        batch_json = part_json_file.replace('quads.json',f'batch_{batch}_quads.json')
+        if os.path.isfile(batch_json):
+            print(batch_json,' exists, skip')
+            continue
         
         with open(part_json_file, 'r') as json_file:
             
@@ -374,6 +390,7 @@ def save_barcode_batch_json(indir,sample,subset=1):
             print(jsons[i],len(data_sub))
 
             for j in range(sub_batch_N):
+                
                 batch = str(j+1).zfill(3)
                 batch_json = part_json_file.replace('quads.json',f'batch_{batch}_quads.json')
                 
@@ -381,7 +398,7 @@ def save_barcode_batch_json(indir,sample,subset=1):
                 for a in anchors_split[j]:
                     if a in data_sub:
                         sub_agg[a] = data_sub[a]
-                        
+              
                 print(batch_json,j,len(sub_agg))
                 with open(batch_json, 'w') as json_file:
                     json.dump(sub_agg, json_file)
@@ -391,36 +408,20 @@ def aggregate_barcode_batches(indir,sample):
     dir_split = f'{indir}/{sample}/split/'
     files = os.listdir(dir_split)
     jsons = sorted([f for f in files if 'batch_' in f and 'part_' in f])
-    
-    print(len(jsons))
-    #return jsons
-    
     all_batches = np.unique([json.split('batch')[1] for json in jsons])
     
     for b in all_batches:
         
         batch_jsons = ([json for json in jsons if b in json])
-        
         agg_batch_json = f'{sample}.batch{b}'
-        
         agg_batch_json_file = f'{dir_split}{agg_batch_json}'
-        
-        
-        print(agg_batch_json_file)
-        
         if os.path.isfile(agg_batch_json_file):
             print(agg_batch_json_file,' exists, skip')
             continue
-        
         data_agg = {}
-
         for p in batch_jsons:
             sub_parts_of_batch = f'{dir_split}{p}'
-            #print(sub_parts_of_batch)
-            
-
             with open(sub_parts_of_batch, 'r') as json_file:
-
                 data_sub = json.load(json_file)
                 print(p,len(data_sub))
                 for k in data_sub:

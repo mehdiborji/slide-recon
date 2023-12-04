@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -c 10
+#SBATCH -c 16
 #SBATCH --mem=40G
-#SBATCH -t 0:30:00
+#SBATCH -t 2:30:00
 #SBATCH -p short
 #SBATCH -o recon_count_job_%A.out
 

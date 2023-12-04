@@ -33,9 +33,9 @@ min_dist = args.min_dist
 
 def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist):
     
-    begin_epoch = 200
-    end_epoch = 40000
-    step = 200
+    begin_epoch = 500
+    end_epoch = 5000
+    step = 500
     epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
     
     umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}'
