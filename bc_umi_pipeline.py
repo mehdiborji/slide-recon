@@ -44,8 +44,8 @@ bc_umi_utils.unzip_split_fastq(indir,sample,cores)
 args = bc_umi_utils.find_sub_fastq_pairs(indir,sample,limit)
 [print(a) for a in args]
 
-#pool = Pool(int(cores))
-pool = Pool(8)
+pool = Pool(int(cores))
+#pool = Pool(16)
 
 results = pool.starmap(bc_umi_utils.extract_bc_umi_dict, args)
 pool.close()
@@ -76,8 +76,8 @@ else:
 args=[(indir, sample, i, limit) for i in range(1, int(cores)+1)]
 [print(a) for a in args]
 
-#pool = Pool(int(cores))
-pool = Pool(8)
+pool = Pool(int(cores))
+#pool = Pool(8)
 
 results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()

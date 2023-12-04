@@ -138,7 +138,7 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
             polyT_cnt = seq1[-8:].count('T')
             polyA_cnt = seq2[-8:].count('A')
             
-            if len_1 == 50 and len_2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
+            if len1 == 50 and len2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
                 
                 edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
                 edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
@@ -174,6 +174,60 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
     with open(targets_json, 'w') as json_file:
         json.dump(targets_dict, json_file)
 
+def extract_quad_dict(indir,sample,part,limit):
+    
+    i = 0; max_dist = 2; quad_dict = {}
+    
+    part = f'part_{str(part).zfill(3)}'
+    
+    R1_fastq = f'{indir}/{sample}/split/{sample}_R1_001.{part}.fastq'
+    R2_fastq = f'{indir}/{sample}/split/{sample}_R2_001.{part}.fastq'
+    
+    quads_json = f'{indir}/{sample}/split/{sample}.{part}_quads.json'
+    if os.path.isfile(quads_json):
+        print(quads_json,' exists, skip')
+        return
+    
+    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
+    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
+
+    a_dict = {}
+    for bc in a_white: a_dict[bc] = []
+    t_dict = {}
+    for bc in t_white: t_dict[bc] = []
+    
+    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
+        for r1, r2 in tqdm(zip(R1, R2)):
+            i+=1
+            
+            seq1 = r1.sequence
+            seq2 = r2.sequence
+            
+            len1 = len(seq1)
+            len2 = len(seq2)
+            
+            polyT_cnt = seq1[-8:].count('T')
+            polyA_cnt = seq2[-8:].count('A')
+            
+            if len1 == 50 and len2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
+                
+                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                if edit_pass1 and edit_pass2:
+
+                    a_bc, a_umi = seq_slice(seq1)
+                    t_bc, t_umi = seq_slice(seq2)
+
+                    if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
+                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+                    if i>N_read_extract and limit: break
+              
+    with open(quads_json, 'w') as json_file:
+        json.dump(quad_dict, json_file)
+        
+        
 def aggregate_stat_dicts(indir,sample,position): 
     
     dir_split=f'{indir}/{sample}/split/'
@@ -305,44 +359,7 @@ def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=10000
     qc_pdfs.savefig(bbox_inches='tight')
     #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
 
-def extract_quad_dict(indir,sample,part,limit):
-    
-    i = 0;max_dist = 2;quad_dict = {}
-    
-    part = f'part_{str(part).zfill(3)}'
-    
-    R1_fastq = f'{indir}/{sample}/split/{sample}_R1_001.{part}.fastq'
-    R2_fastq = f'{indir}/{sample}/split/{sample}_R2_001.{part}.fastq'
-    
-    quads_json = f'{indir}/{sample}/split/{sample}.{part}_quads.json'
-    if os.path.isfile(quads_json):
-        print(quads_json,' exists, skip')
-        return
-    
-    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
-    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
 
-    a_dict = {}
-    for bc in a_white: a_dict[bc] = []
-    t_dict = {}
-    for bc in t_white: t_dict[bc] = []
-    
-    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
-        for r1, r2 in tqdm(zip(R1, R2)):
-            i+=1
-            
-            seq1 = r1.sequence
-            seq2 = r2.sequence
-            #if UP_edit_pass(seq1,max_dist) and UP_edit_pass(seq2,max_dist):
-            a_bc,a_umi=seq_slice(seq1)
-            t_bc,t_umi=seq_slice(seq2)
-
-            if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
-                quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-            if i>N_read_extract and limit: break
-            
-    with open(quads_json, 'w') as json_file:
-        json.dump(quad_dict, json_file)
         
 def find_sub_fastq_pairs(indir,sample,limit):
 
