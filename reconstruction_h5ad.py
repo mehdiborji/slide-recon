@@ -60,7 +60,6 @@ def get_pa(pos_truth,pos_recon):
     
     return disparity, mtx1_scaled, mtx2_scaled, dist
 
-
 # sample info
 date = '230927'
 sample = 'c58_4'
@@ -137,7 +136,6 @@ axes[1].scatter(a_umap_matched['xcoord'], a_umap_matched['ycoord'], s=3, c=a_col
 axes[1].set_title(anchor+'UMAP ({})'.format(len(a_umap_matched)))
     
 plt.show()
-
 
 # alignment analysis
 da, a_truth_pa, a_recon_pa, a_comp = get_pa(a_truth,a_umap_matched)

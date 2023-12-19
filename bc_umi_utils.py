@@ -19,6 +19,8 @@ UP_seq='TCTTCAGCGTTCCCGAGA'
 ad_seq=[('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
 #print(UP_seq)
 
+filter_poly = False
+
 N_read_extract=100000
 
 print(N_read_extract)
@@ -83,8 +85,8 @@ def UP_edit_pass(read_seq,max_dist):
     return(boolean_pass, ed_dist)
 
 def seq_slice(read_seq):
-    bc = read_seq[:8]+read_seq[26:32]
-    umi = read_seq[33:41]
+    bc = read_seq[:8]+read_seq[26:33]
+    umi = read_seq[33:42]
     return(bc, umi)
 
 def outfile_from_in(infile,suffix):
@@ -135,10 +137,33 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
             len1 = len(seq1)
             len2 = len(seq2)
             
-            polyT_cnt = seq1[-8:].count('T')
-            polyA_cnt = seq2[-8:].count('A')
+            if filter_poly:
+                
+                polyT_cnt = seq1[-8:].count('T')
+                polyA_cnt = seq2[-8:].count('A')
+
+                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
+
+                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                    seq_counter(anchor_edits_dict,edit1)
+                    seq_counter(target_edits_dict,edit2)
+
+                    if edit_pass1 and edit_pass2:
+
+                        a_bc, a_umi = seq_slice(seq1)
+                        t_bc, t_umi = seq_slice(seq2)
+
+                        seq_counter(anchors_umi_len_dict, len(a_umi))
+                        seq_counter(targets_umi_len_dict, len(t_umi))
+
+                        quad_dict_store(anchors_dict, a_bc, a_umi)
+                        quad_dict_store(targets_dict, t_bc, t_umi)
+
+                    if i>N_read_extract and limit: break
             
-            if len1 == 50 and len2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
+            else:
                 
                 edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
                 edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
@@ -206,10 +231,26 @@ def extract_quad_dict(indir,sample,part,limit):
             len1 = len(seq1)
             len2 = len(seq2)
             
-            polyT_cnt = seq1[-8:].count('T')
-            polyA_cnt = seq2[-8:].count('A')
-            
-            if len1 == 50 and len2 == 50 and polyT_cnt>=7 and polyA_cnt>=7:
+            if filter_poly:
+                
+                polyT_cnt = seq1[-8:].count('T')
+                polyA_cnt = seq2[-8:].count('A')
+
+                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
+
+                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                    if edit_pass1 and edit_pass2:
+
+                        a_bc, a_umi = seq_slice(seq1)
+                        t_bc, t_umi = seq_slice(seq2)
+
+                        if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
+                            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+                        if i>N_read_extract and limit: break
+            else:
                 
                 edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
                 edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
@@ -223,6 +264,7 @@ def extract_quad_dict(indir,sample,part,limit):
                         quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
 
                     if i>N_read_extract and limit: break
+                
               
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)
@@ -280,10 +322,12 @@ def aggregate_dicts(indir,sample,position):
     for k in tqdm(data_agg):
         reads=len(data_agg[k])
         total_reads+=reads
-        if reads>=2:
+        if reads>=1:
             read_dict[k]=reads
             umi_dict[k]=len(set(data_agg[k]))
             
+    print(f'Total Reads Extracted in {position} = {total_reads/1e6}m')
+    
     umi_cnt=pd.Series(umi_dict)
     read_cnt=pd.Series(read_dict)
     
@@ -387,7 +431,7 @@ def save_barcode_batch_json(indir,sample):
 
     data_agg = {}
     
-    sub_batch_N = int(len(a_white.index)/10000)+1
+    sub_batch_N = int(len(a_white.index)/30000)+1
 
     anchors_split = np.array_split(sorted(a_white.index), sub_batch_N)  
     
@@ -522,6 +566,74 @@ def make_count_mtx_batch(indir,sample,batch,threshold=0):
     print('writing sparse AnnData')
     counts_df.write_h5ad(adata_file,compression='gzip')
 
+def make_count_sparse_mtx_batch(indir,sample,batch,threshold=0):
+    
+    batch = str(batch).zfill(3)
+    adata_file = f'{indir}/{sample}/{sample}_counts_b_{batch}.h5ad'
+    
+    if os.path.isfile(adata_file):
+        print(adata_file,' exists, skip')
+        return
+   
+    batch_json = f'{indir}/{sample}/split/{sample}.batch_{batch}_quads.json'
+
+    with open(batch_json, 'r') as json_file:
+        data_agg = json.load(json_file)
+        
+    subset_anchors = 100000
+
+    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']#,index_col=1)#['bc']
+    t_white = t_white.reset_index()
+    t_white = t_white.set_index('bc')
+    
+    a_white = list(data_agg.keys()) [:subset_anchors]
+
+    rows_idx = []
+    cols_idx = []
+    row_col_values = []
+    
+    for a_idx, a_bc in enumerate(tqdm(a_white[:subset_anchors])):
+        #print(a_idx)
+        if a_bc not in data_agg:
+            print(f'{a_bc} not in data_agg')
+            continue
+
+        umi_tbc = data_agg[a_bc]
+        umi_bc_dic = {}
+        for a in umi_tbc:
+            if len(a[0])==9:
+                if umi_bc_dic.get(a[0]) is not None:
+                    umi_bc_dic[a[0]].append(a[1])
+                else:
+                    umi_bc_dic[a[0]] = [a[1]]
+
+        t_bc_cnt={}
+        
+        for k in umi_bc_dic:
+            umi_reads = len(umi_bc_dic[k])
+            if umi_reads > threshold:
+                uni_t_bc=set(umi_bc_dic[k])
+                if len(uni_t_bc) > 1:
+                    bcs, cnts = np.unique(umi_bc_dic[k],return_counts=True)
+                    if np.max(cnts/umi_reads) > .74: # the concordance to accept the UMI 2/2, 3/3, 3/4, 4/5 or better 
+                        t_bc = bcs[np.argmax(cnts/umi_reads)]
+                        seq_counter(t_bc_cnt,t_bc)
+                else:
+                    t_bc = list(uni_t_bc)[0]
+                    seq_counter(t_bc_cnt,t_bc)
+        
+        rows_idx.extend((np.ones(len(t_bc_cnt),dtype=int)*a_idx).tolist())
+        cols_idx.extend(t_white.loc[t_bc_cnt.keys()]['index'].tolist())
+        row_col_values.extend(list(t_bc_cnt.values()))
+        
+    csr = csr_matrix((row_col_values, (rows_idx, cols_idx)), shape=(len(a_white), len(t_white)))
+    adata = AnnData(csr,dtype='float32')
+    adata.var.index = t_white.index
+    adata.obs.index = a_white
+    
+    adata.write_h5ad(adata_file,compression='gzip')
+    
+    
 def make_count_mtx(indir,sample,subset=-1,threshold=0):
     
     adata_file = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad'

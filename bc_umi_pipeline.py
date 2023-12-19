@@ -66,7 +66,6 @@ qc_pdf_file = f'{indir}/{sample}/{sample}_QC.pdf'
 
 if os.path.isfile(qc_pdf_file):
     print(qc_pdf_file,' exists, skip')
-
 else:
     qc_pdfs = PdfPages(qc_pdf_file)
     bc_umi_utils.whitelist_rankplot(indir,sample,'anchors',qc_pdfs,max_anchors)
@@ -99,8 +98,9 @@ batches = sorted([f.split('_')[-2] for f in os.listdir(f'{indir}/{sample}/split/
 len_batches = len(batches)
 args = [(indir, sample, i) for i in range(1, len_batches+1)]
 args = args[::-1]
-#[print(a) for a in args]
-pool = Pool(8)
-results = pool.starmap(bc_umi_utils.make_count_mtx_batch, args)
+[print(a) for a in args]
+pool = Pool(15)
+#results = pool.starmap(bc_umi_utils.make_count_mtx_batch, args)
+results = pool.starmap(bc_umi_utils.make_count_sparse_mtx_batch, args)
 pool.close()
 pool.join()
