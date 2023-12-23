@@ -15,9 +15,8 @@ import seaborn as sns
 from scipy.sparse import csr_matrix
 from anndata import AnnData
 
-UP_seq='TCTTCAGCGTTCCCGAGA'
-ad_seq=[('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
-#print(UP_seq)
+UP_seq = 'TCTTCAGCGTTCCCGAGA'
+ad_seq = [('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
 
 filter_poly = False
 

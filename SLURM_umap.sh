@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -c 20
-#SBATCH --mem=10G
-#SBATCH -t 6:00:00
-#SBATCH -p short
+#SBATCH --mem=32G
+#SBATCH -t 40:00:00
+#SBATCH -p medium
 #SBATCH -o umap_job_%A.out
 
 echo 'indir =' $1
