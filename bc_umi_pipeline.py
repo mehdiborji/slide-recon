@@ -35,17 +35,21 @@ max_targets = args.max_targets
 
 ######################################################
 
-bc_umi_utils.unzip_split_fastq(indir,sample,cores)
+#bc_umi_utils.unzip_split_fastq(indir,sample,cores)
 
-#split_fastq(indir,sample,cores)
+bc_umi_utils.split_fastq_by_lines(indir,sample,4e7)
+
 
 ######################################################
 
-args = bc_umi_utils.find_sub_fastq_pairs(indir,sample,limit)
+#args = bc_umi_utils.find_sub_fastq_pairs(indir,sample,limit)
+
+args = bc_umi_utils.find_sub_fastq_pairs_line_splits(indir,sample,limit)
+
 [print(a) for a in args]
 
-#pool = Pool(int(cores))
-pool = Pool(8)
+pool = Pool(int(cores))
+#pool = Pool(20)
 
 results = pool.starmap(bc_umi_utils.extract_bc_umi_dict, args)
 pool.close()
@@ -72,6 +76,7 @@ else:
     bc_umi_utils.whitelist_rankplot(indir,sample,'targets',qc_pdfs,max_targets)
     qc_pdfs.close()
 ######################################################
+
 args=[(indir, sample, i, limit) for i in range(1, int(cores)+1)]
 [print(a) for a in args]
 

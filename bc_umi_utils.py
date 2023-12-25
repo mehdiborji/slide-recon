@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.sparse import csr_matrix
 from anndata import AnnData
+import re
 
 UP_seq = 'TCTTCAGCGTTCCCGAGA'
 ad_seq = [('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
@@ -63,6 +64,37 @@ def unzip_split_fastq(indir,sample,cores):
         
         #subprocess.call(['pigz', '-f', f'{indir}/{sample}/split/*.fastq'])
 
+def split_fastq_by_lines(indir,sample,lines=4e6):
+    
+    splitted_file = f'{indir}/{sample}/split/{sample}_R1.part_000.fastq'
+    
+    if os.path.isfile(splitted_file):
+        print(splitted_file,' splitted fastq exists, skip splitting')
+    else:
+        print(splitted_file,' splitted fastq does not exist')
+        
+        R1 = f'{indir}/{sample}_R1_001.fastq.gz'
+        R2 = f'{indir}/{sample}_R2_001.fastq.gz'
+        
+        split_dir = f'{indir}/{sample}/split'
+        if not os.path.exists(split_dir):
+            os.makedirs(split_dir)
+            print(f'{split_dir} created')
+        else:
+            print(f'{split_dir} already exists')
+        
+        split_R1_name = f'{split_dir}/{sample}_R1.part_'
+        split_R2_name = f'{split_dir}/{sample}_R2.part_'
+        
+        command_R1 = f'zcat {R1} | split -a 3 -l {int(lines)} -d --additional-suffix=.fastq - {split_R1_name}'
+        command_R2 = command_R1.replace('_R1','_R2')
+        #print(command_R1)
+        #print(command_R2)
+        subprocess.call(f'{command_R1} & {command_R2}', shell=True)
+        
+        #command = f'zcat {R2} | split -a 3 -l {int(lines)} -d --additional-suffix=.fastq - {split_R2_name}'
+        #subprocess.call(command, shell=True)
+        
 def seq_counter(seq_dict,seq_instance):
     
     if seq_dict.get(seq_instance) is None:
@@ -97,6 +129,17 @@ def outfile_from_in(infile,suffix):
     #print(split_part,split_root,sample,outfile)
     
     return(split_root, split_part, outfile)
+
+def outfile_from_in_general(infile,suffix,extension):
+    
+    split_root = os.path.dirname(infile)
+    sample = os.path.dirname(split_root)
+    split_part = os.path.basename(infile).split('.')[1]
+    outfile = f'{split_root}/{sample}.{split_part}_{suffix}.json'
+    #print(split_part,split_root,sample,outfile)
+    
+    return(split_root, split_part, outfile)
+
 
 def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
     
@@ -409,6 +452,21 @@ def find_sub_fastq_pairs(indir,sample,limit):
     R1s=sorted([f for f in os.listdir(f'{indir}/{sample}/split/') if '_R1_001.part' in f])
     R2s=[f.replace('_R1_','_R2_') for f in R1s]
     pairs=[]
+
+    for i in range(len(R1s)): 
+        pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
+        
+    return pairs
+
+def find_sub_fastq_pairs_line_splits(indir,sample,limit):
+    
+    #pattern = re.compile(r'_R1_\d{3}\.fastq')
+    pattern = re.compile(r'_R1.part_(.*?)\.fastq')
+
+    R1s = sorted([f for f in os.listdir(f'{indir}/{sample}/split/') if pattern.search(f)])
+    
+    R2s = [f.replace('_R1.','_R2.') for f in R1s]
+    pairs = []
 
     for i in range(len(R1s)): 
         pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
