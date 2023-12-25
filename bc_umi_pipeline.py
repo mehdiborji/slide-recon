@@ -37,19 +37,21 @@ max_targets = args.max_targets
 
 #bc_umi_utils.unzip_split_fastq(indir,sample,cores)
 
-bc_umi_utils.split_fastq_by_lines(indir,sample,4e7)
+bc_umi_utils.split_fastq_by_lines(indir,sample,4e6)
 
 
 ######################################################
 
 #args = bc_umi_utils.find_sub_fastq_pairs(indir,sample,limit)
 
-args = bc_umi_utils.find_sub_fastq_pairs_line_splits(indir,sample,limit)
+#args = bc_umi_utils.find_sub_fastq_pairs_line_splits(indir,sample,limit)
 
-[print(a) for a in args]
+parts = bc_umi_utils.find_sub_fastq_parts(indir,sample)
 
-pool = Pool(int(cores))
-#pool = Pool(20)
+args = [(indir,sample,part,limit) for part in parts]
+
+#pool = Pool(int(cores))
+pool = Pool(5)
 
 results = pool.starmap(bc_umi_utils.extract_bc_umi_dict, args)
 pool.close()
@@ -77,11 +79,11 @@ else:
     qc_pdfs.close()
 ######################################################
 
-args=[(indir, sample, i, limit) for i in range(1, int(cores)+1)]
-[print(a) for a in args]
+#args=[(indir, sample, i, limit) for i in range(1, int(cores)+1)]
+#[print(a) for a in args]
 
 #pool = Pool(int(cores))
-pool = Pool(8)
+pool = Pool(25)
 
 results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()
@@ -89,6 +91,7 @@ pool.join()
 ######################################################
 
 bc_umi_utils.save_barcode_batch_json(indir,sample)
+
 bc_umi_utils.aggregate_barcode_batches(indir,sample)
                                      
 ######################################################

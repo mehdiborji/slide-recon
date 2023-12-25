@@ -123,14 +123,19 @@ def seq_slice(read_seq):
 def outfile_from_in(infile,suffix):
     
     split_root = os.path.dirname(infile)
-    sample = os.path.dirname(split_root)
+    #sample = os.path.dirname(split_root)
+    sample = os.path.basename(split_root)
     split_part = os.path.basename(infile).split('.')[1]
     outfile = f'{split_root}/{sample}.{split_part}_{suffix}.json'
     #print(split_part,split_root,sample,outfile)
+    print('split_part = ', split_part)
+    print('split_root = ', split_root)
+    print('sample = ', sample)
+    print('outfile = ', outfile)
     
     return(split_root, split_part, outfile)
 
-def outfile_from_in_general(infile,suffix,extension):
+def outfile_from_input_fastq(infile,suffix,extension):
     
     split_root = os.path.dirname(infile)
     sample = os.path.dirname(split_root)
@@ -141,19 +146,22 @@ def outfile_from_in_general(infile,suffix,extension):
     return(split_root, split_part, outfile)
 
 
-def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
+def extract_bc_umi_dict(indir,sample,part,limit):
     
     i = 0
     max_dist = 2
     
-    split_root, split_part, anchors_json = outfile_from_in(R1_fastq,'anchors')
-    split_root, split_part, targets_json = outfile_from_in(R1_fastq,'targets')
+    R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
+    R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
     
-    split_root, split_part, anchor_edits_json = outfile_from_in(R1_fastq,'anchor_edits')
-    split_root, split_part, target_edits_json = outfile_from_in(R1_fastq,'target_edits')
+    anchors_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchors.json'
+    targets_json = f'{indir}/{sample}/split/{sample}.part_{part}_targets.json'
     
-    split_root, split_part, anchors_umi_len_json = outfile_from_in(R1_fastq,'anchors_umi_len')
-    split_root, split_part, targets_umi_len_json = outfile_from_in(R1_fastq,'targets_umi_len')
+    anchors_umi_len_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchors_umi_len.json'
+    targets_umi_len_json = f'{indir}/{sample}/split/{sample}.part_{part}_targets_umi_len.json'
+    
+    anchor_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchor_edits.json'
+    target_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_target_edits.json'
     
     if os.path.isfile(anchors_json):
         print(anchors_json,' exists, skip')
@@ -240,77 +248,6 @@ def extract_bc_umi_dict(R1_fastq,R2_fastq,limit):
         json.dump(anchors_dict, json_file)
     with open(targets_json, 'w') as json_file:
         json.dump(targets_dict, json_file)
-
-def extract_quad_dict(indir,sample,part,limit):
-    
-    i = 0; max_dist = 2; quad_dict = {}
-    
-    part = f'part_{str(part).zfill(3)}'
-    
-    R1_fastq = f'{indir}/{sample}/split/{sample}_R1_001.{part}.fastq'
-    R2_fastq = f'{indir}/{sample}/split/{sample}_R2_001.{part}.fastq'
-    
-    quads_json = f'{indir}/{sample}/split/{sample}.{part}_quads.json'
-    if os.path.isfile(quads_json):
-        print(quads_json,' exists, skip')
-        return
-    
-    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
-    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
-
-    a_dict = {}
-    for bc in a_white: a_dict[bc] = []
-    t_dict = {}
-    for bc in t_white: t_dict[bc] = []
-    
-    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
-        for r1, r2 in tqdm(zip(R1, R2)):
-            i+=1
-            
-            seq1 = r1.sequence
-            seq2 = r2.sequence
-            
-            len1 = len(seq1)
-            len2 = len(seq2)
-            
-            if filter_poly:
-                
-                polyT_cnt = seq1[-8:].count('T')
-                polyA_cnt = seq2[-8:].count('A')
-
-                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
-
-                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
-                    if edit_pass1 and edit_pass2:
-
-                        a_bc, a_umi = seq_slice(seq1)
-                        t_bc, t_umi = seq_slice(seq2)
-
-                        if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
-                            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
-                        if i>N_read_extract and limit: break
-            else:
-                
-                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
-                if edit_pass1 and edit_pass2:
-
-                    a_bc, a_umi = seq_slice(seq1)
-                    t_bc, t_umi = seq_slice(seq2)
-
-                    if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
-                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
-                    if i>N_read_extract and limit: break
-                
-              
-    with open(quads_json, 'w') as json_file:
-        json.dump(quad_dict, json_file)
-        
         
 def aggregate_stat_dicts(indir,sample,position): 
     
@@ -335,6 +272,7 @@ def aggregate_stat_dicts(indir,sample,position):
                     data_agg[k]=data_sub[k]
                     
     pd.Series(data_agg).to_csv(agg_read_csv)
+    
     
 def aggregate_dicts(indir,sample,position): 
     
@@ -444,7 +382,77 @@ def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=10000
     
     qc_pdfs.savefig(bbox_inches='tight')
     #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
+    
+def extract_quad_dict(indir,sample,part,limit):
+    
+    i = 0; max_dist = 2; quad_dict = {}
+    
+    #part = f'part_{str(part).zfill(3)}'
+    
+    R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
+    R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
+    
+    quads_json = f'{indir}/{sample}/split/{sample}.part_{part}_quads.json'
+    
+    if os.path.isfile(quads_json):
+        print(quads_json,' exists, skip')
+        return
+    
+    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
+    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
 
+    a_dict = {}
+    for bc in a_white: a_dict[bc] = []
+    t_dict = {}
+    for bc in t_white: t_dict[bc] = []
+    
+    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
+        for r1, r2 in tqdm(zip(R1, R2)):
+            i+=1
+            
+            seq1 = r1.sequence
+            seq2 = r2.sequence
+            
+            len1 = len(seq1)
+            len2 = len(seq2)
+            
+            if filter_poly:
+                
+                polyT_cnt = seq1[-8:].count('T')
+                polyA_cnt = seq2[-8:].count('A')
+
+                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
+
+                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                    if edit_pass1 and edit_pass2:
+
+                        a_bc, a_umi = seq_slice(seq1)
+                        t_bc, t_umi = seq_slice(seq2)
+
+                        if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
+                            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+                        if i>N_read_extract and limit: break
+            else:
+                
+                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                if edit_pass1 and edit_pass2:
+
+                    a_bc, a_umi = seq_slice(seq1)
+                    t_bc, t_umi = seq_slice(seq2)
+
+                    if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
+                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+                    if i>N_read_extract and limit: break
+                
+              
+    with open(quads_json, 'w') as json_file:
+        json.dump(quad_dict, json_file)
 
         
 def find_sub_fastq_pairs(indir,sample,limit):
@@ -472,6 +480,17 @@ def find_sub_fastq_pairs_line_splits(indir,sample,limit):
         pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
         
     return pairs
+
+def find_sub_fastq_parts(indir,sample):
+    
+    #pattern = re.compile(r'_R1_\d{3}\.fastq')
+    pattern = re.compile(r'_R1.part_(.*?)\.fastq')
+    
+    all_files = os.listdir(f'{indir}/{sample}/split/')
+
+    parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
+    
+    return parts
 
 def save_barcode_batch_json(indir,sample):
     
@@ -525,7 +544,9 @@ def aggregate_barcode_batches(indir,sample):
     
     dir_split = f'{indir}/{sample}/split/'
     files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if 'batch_' in f and 'part_' in f])
+    
+    jsons = sorted([f for f in files if 'batch_' in f and f'quads.json' in f])
+    
     all_batches = np.unique([json.split('batch')[1] for json in jsons])
     
     for b in all_batches:
