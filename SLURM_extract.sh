@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -c 16
+#SBATCH -c 20
 #SBATCH --mem=40G
 #SBATCH -t 1:30:00
 #SBATCH -p short
-#SBATCH -o recon_count_job_%A.out
+#SBATCH -o slide_recon_count_job_%A.out
 
 echo 'indir =' $1
 echo 'sample =' $2

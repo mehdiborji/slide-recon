@@ -12,11 +12,6 @@ parser.add_argument('-l', '--limit', default=False, action='store_true')
 parser.add_argument('-ma', '--max_anchors', type=int)
 parser.add_argument('-mt', '--max_targets', type=int)
 
-#parser.add_argument('--outdir', type=str)
-#parser.add_argument('--barcodes', type=str)
-#parser.add_argument('--split', default=False, action='store_true')
-#parser.add_argument('--mode', type=str)
-
 args = parser.parse_args()
 
 cores = args.cores
@@ -26,33 +21,16 @@ limit = args.limit
 max_anchors = args.max_anchors
 max_targets = args.max_targets
 
-#outdir = args.outdir
-#barcodes = args.barcodes
-#split = args.split
-#mode = args.mode
-
-#if __name__ == '__main__':
-
 ######################################################
-
-#bc_umi_utils.unzip_split_fastq(indir,sample,cores)
 
 bc_umi_utils.split_fastq_by_lines(indir,sample,4e6)
 
-
 ######################################################
 
-#args = bc_umi_utils.find_sub_fastq_pairs(indir,sample,limit)
-
-#args = bc_umi_utils.find_sub_fastq_pairs_line_splits(indir,sample,limit)
-
 parts = bc_umi_utils.find_sub_fastq_parts(indir,sample)
-
 args = [(indir,sample,part,limit) for part in parts]
 
-#pool = Pool(int(cores))
-pool = Pool(5)
-
+pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_bc_umi_dict, args)
 pool.close()
 pool.join()
@@ -79,36 +57,23 @@ else:
     qc_pdfs.close()
 ######################################################
 
-#args=[(indir, sample, i, limit) for i in range(1, int(cores)+1)]
-#[print(a) for a in args]
-
-#pool = Pool(int(cores))
-pool = Pool(25)
-
+pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()
 pool.join()
 ######################################################
 
 bc_umi_utils.save_barcode_batch_json(indir,sample)
-
 bc_umi_utils.aggregate_barcode_batches(indir,sample)
                                      
-######################################################
-
-#for s in [1, 2, 3, 4, 6, 8, 10, 13, 16]:
-#for s in [16, 8, 4]:
-#    bc_umi_utils.make_count_mtx(indir, sample, subset = s, threshold = 0)
-
 ######################################################
 
 batches = sorted([f.split('_')[-2] for f in os.listdir(f'{indir}/{sample}/split/') if 'batch' in f and 'part' not in f])
 len_batches = len(batches)
 args = [(indir, sample, i) for i in range(1, len_batches+1)]
-args = args[::-1]
 [print(a) for a in args]
-pool = Pool(16)
-#results = pool.starmap(bc_umi_utils.make_count_mtx_batch, args)
+
+pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.make_count_sparse_mtx_batch, args)
 pool.close()
 pool.join()

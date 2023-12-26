@@ -17,52 +17,12 @@ from anndata import AnnData
 import re
 
 UP_seq = 'TCTTCAGCGTTCCCGAGA'
-ad_seq = [('N', 'A'), ('N', 'T'), ('N', 'G'), ('N', 'C')]
 
-filter_poly = False
+filter_poly = True
 
-N_read_extract=100000
+N_read_extract = 100000
 
 print(N_read_extract)
-
-def split_fastq(indir,sample,cores):
-    
-    splitted_file = f'{indir}/{sample}/split/{sample}_R1_001.part_001.fastq.gz'
-    
-    if os.path.isfile(splitted_file):
-        print(splitted_file,' splitted fastq exists, skip splitting')
-    else:
-        print(splitted_file,' splitted fastq does not exist')
-        R1 = f'{indir}/{sample}_R1_001.fastq.gz'
-        R2 = f'{indir}/{sample}_R2_001.fastq.gz'
-        subprocess.call(['seqkit', 'split2' , '-1', R1, '-2', R2, '-p', str(cores), '-f', '-O', f'{indir}/{sample}/split/'])
-
-def unzip_split_fastq(indir,sample,cores):
-    
-    splitted_file = f'{indir}/{sample}/split/{sample}_R1_001.part_001.fastq'
-    
-    if os.path.isfile(splitted_file):
-        print(splitted_file,' splitted fastq exists, skip splitting')
-    else:
-        print(splitted_file,' splitted fastq does not exist')
-        R1 = f'{indir}/{sample}_R1_001.fastq.gz'
-        R2 = f'{indir}/{sample}_R2_001.fastq.gz'
-        
-        unR1 = R1.replace('.gz','')
-        unR2 = R2.replace('.gz','')
-        
-        command=f'zcat {R1} > {unR1}'
-        subprocess.call(command,shell=True)
-        command=f'zcat {R2} > {unR2}'
-        subprocess.call(command,shell=True)
-
-        subprocess.call(['seqkit', 'split2' , '-1', unR1, '-2', unR2, '-p', 
-                         str(cores), '-f', '-O', f'{indir}/{sample}/split/'])
-        
-        command=f'rm {unR1} {unR2}'
-        subprocess.call(command,shell=True)
-        
-        #subprocess.call(['pigz', '-f', f'{indir}/{sample}/split/*.fastq'])
 
 def split_fastq_by_lines(indir,sample,lines=4e6):
     
@@ -88,13 +48,9 @@ def split_fastq_by_lines(indir,sample,lines=4e6):
         
         command_R1 = f'zcat {R1} | split -a 3 -l {int(lines)} -d --additional-suffix=.fastq - {split_R1_name}'
         command_R2 = command_R1.replace('_R1','_R2')
-        #print(command_R1)
-        #print(command_R2)
+
         subprocess.call(f'{command_R1} & {command_R2}', shell=True)
-        
-        #command = f'zcat {R2} | split -a 3 -l {int(lines)} -d --additional-suffix=.fastq - {split_R2_name}'
-        #subprocess.call(command, shell=True)
-        
+
 def seq_counter(seq_dict,seq_instance):
     
     if seq_dict.get(seq_instance) is None:
@@ -120,31 +76,16 @@ def seq_slice(read_seq):
     umi = read_seq[33:42]
     return(bc, umi)
 
-def outfile_from_in(infile,suffix):
+def find_sub_fastq_parts(indir,sample):
     
-    split_root = os.path.dirname(infile)
-    #sample = os.path.dirname(split_root)
-    sample = os.path.basename(split_root)
-    split_part = os.path.basename(infile).split('.')[1]
-    outfile = f'{split_root}/{sample}.{split_part}_{suffix}.json'
-    #print(split_part,split_root,sample,outfile)
-    print('split_part = ', split_part)
-    print('split_root = ', split_root)
-    print('sample = ', sample)
-    print('outfile = ', outfile)
+    #pattern = re.compile(r'_R1_\d{3}\.fastq')
+    pattern = re.compile(r'_R1.part_(.*?)\.fastq')
     
-    return(split_root, split_part, outfile)
+    all_files = os.listdir(f'{indir}/{sample}/split/')
 
-def outfile_from_input_fastq(infile,suffix,extension):
+    parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
     
-    split_root = os.path.dirname(infile)
-    sample = os.path.dirname(split_root)
-    split_part = os.path.basename(infile).split('.')[1]
-    outfile = f'{split_root}/{sample}.{split_part}_{suffix}.json'
-    #print(split_part,split_root,sample,outfile)
-    
-    return(split_root, split_part, outfile)
-
+    return parts
 
 def extract_bc_umi_dict(indir,sample,part,limit):
     
@@ -248,141 +189,7 @@ def extract_bc_umi_dict(indir,sample,part,limit):
         json.dump(anchors_dict, json_file)
     with open(targets_json, 'w') as json_file:
         json.dump(targets_dict, json_file)
-        
-def aggregate_stat_dicts(indir,sample,position): 
-    
-    dir_split=f'{indir}/{sample}/split/'
-    files=os.listdir(dir_split)
-    jsons = sorted([f for f in files if f'{position}.json' in f])
-    
-    agg_read_csv=f'{indir}/{sample}/{sample}_agg_cnt_{position}.csv'
-    
-    if os.path.isfile(agg_read_csv):
-        print(agg_read_csv,' exists, skip')
-        return
-    
-    data_agg={}
-    for i in tqdm(range(len(jsons))):
-        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
-            data_sub = json.load(json_file)
-            for k in data_sub:
-                if data_agg.get(k) is not None:
-                    data_agg[k] += data_sub[k]
-                else:
-                    data_agg[k]=data_sub[k]
-                    
-    pd.Series(data_agg).to_csv(agg_read_csv)
-    
-    
-def aggregate_dicts(indir,sample,position): 
-    
-    dir_split=f'{indir}/{sample}/split/'
-    files=os.listdir(dir_split)
-    jsons = sorted([f for f in files if f'{position}.json' in f])
-    
-    agg_read_csv=f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv'
-    
-    if os.path.isfile(agg_read_csv):
-        print(agg_read_csv,' exists, skip')
-        return
-    
-    data_agg={}
-    for i in tqdm(range(len(jsons))):
-        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
-            data_sub = json.load(json_file)
-            print(jsons[i],len(data_sub))
-            for k in data_sub:
-                if data_agg.get(k) is not None:
-                    data_agg[k].extend(data_sub[k])
-                else:
-                    data_agg[k]=data_sub[k]
-    read_dict={}
-    umi_dict={}
-    total_reads=0
-    for k in tqdm(data_agg):
-        reads=len(data_agg[k])
-        total_reads+=reads
-        if reads>=1:
-            read_dict[k]=reads
-            umi_dict[k]=len(set(data_agg[k]))
-            
-    print(f'Total Reads Extracted in {position} = {total_reads/1e6}m')
-    
-    umi_cnt=pd.Series(umi_dict)
-    read_cnt=pd.Series(read_dict)
-    
-    read_cnt.to_csv(agg_read_csv)
-    umi_cnt.to_csv(agg_read_csv.replace('read','umi'))
-    
-def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=100000):
-    
-    #dup_rate_file=f'{indir}/{sample}/{sample}_{position}_duprate.pdf'
-    #if os.path.isfile(dup_rate_file):
-    #    print(dup_rate_file,' exists, skip')
-    #    return
-    
-    read_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv')
-    umi_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_umi_cnt_{position}.csv')
-    umi_cnt.columns=['bc','umi_cnt']
-    read_cnt.columns=['bc','read_cnt']
-    agg_bcs=pd.merge(umi_cnt,read_cnt,left_on='bc',right_on='bc',how='inner')
-    agg_bcs['log10_read_cnt']=np.log10(agg_bcs['read_cnt'])
-    agg_bcs['log10_umi_cnt']=np.log10(agg_bcs['umi_cnt'])
-    agg_bcs['dup_rate']=agg_bcs['read_cnt']/agg_bcs['umi_cnt']
-    agg_bcs=agg_bcs.sort_values(by='umi_cnt',ascending=False)
-    
-    sub=agg_bcs.iloc[20:max_expected_barcodes].copy()  # select top 100k bc except first 20
-    x = np.histogram(sub.log10_umi_cnt, 100) # fit a histogram
-    smooth = gaussian_filter1d(x[0], 3) # smooth histogram
-    peak_idx,_=find_peaks(-smooth) # find the local minimum
-    print(peak_idx,x[1][:-1][peak_idx])
-    mean_hist=(x[1][1:][peak_idx]+x[1][:-1][peak_idx])/2 # take the mid point of point before and after
-    
-    mean_hist=mean_hist[-1] # take the last value in list of local minima (could be more than one)
 
-    wl_df=agg_bcs[agg_bcs.log10_umi_cnt>=mean_hist].copy()
-    wl_df.to_csv(f'{indir}/{sample}/{sample}_{position}_wl.csv.gz',compression='infer')
-    #wl_reads=wl_df.read_cnt.sum()
-    white_list_size=wl_df.shape[0]
-    
-    plt.figure(figsize=(4,3))
-    log10_ranks=np.log10(np.arange(1,len(agg_bcs)+1))
-    log10_cnts=agg_bcs.log10_umi_cnt
-    plt.plot(log10_ranks,log10_cnts)#,label='Rank Plot of Reads')
-    plt.xlabel('Log10 Ranks')
-    plt.ylabel('Log10 UMI Counts')
-    plt.title(f'{sample} {position}\n {white_list_size} white listed')
-    plt.plot([0, log10_ranks[-1]], [mean_hist, mean_hist], linewidth=1,label='log10 threshold',c='tab:green')
-    log10_wl=np.log10(white_list_size)
-    plt.plot([log10_wl, log10_wl], [log10_cnts.min(), log10_cnts.max()], linewidth=1,label='log10 size',c='tab:orange')
-    plt.legend(loc="best");
-    
-    qc_pdfs.savefig(bbox_inches='tight')
-    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_rankplot.pdf',bbox_inches='tight');
-    
-    plt.figure(figsize=(4,3))
-    plt.plot(x[1][:-1],x[0], label='Raw Histogram')
-    plt.plot(x[1][:-1],smooth, label='Gaussian Smoothed')
-    plt.xlabel('Log10 UMI Counts')
-    plt.ylabel('Bin Height')
-    plt.title(f'{sample} {position}')
-    plt.plot([mean_hist, mean_hist], [0, np.max(x[0])], linewidth=2,label='Whitelist Threshold')
-    plt.legend(loc="best");
-    
-    qc_pdfs.savefig(bbox_inches='tight')
-    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_histogram.pdf',bbox_inches='tight');
-    
-    plt.figure(figsize=(2,2))
-    mean=wl_df.dup_rate.mean()
-    n_std=3
-    width=wl_df.dup_rate.std()*n_std
-    ticks=np.linspace(mean-width,mean+width,n_std)
-    sns.histplot(wl_df[(wl_df.dup_rate>mean-width) & (wl_df.dup_rate<mean+width) ].dup_rate,bins=50)
-    plt.xticks(ticks)
-    
-    qc_pdfs.savefig(bbox_inches='tight')
-    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
-    
 def extract_quad_dict(indir,sample,part,limit):
     
     i = 0; max_dist = 2; quad_dict = {}
@@ -450,47 +257,136 @@ def extract_quad_dict(indir,sample,part,limit):
 
                     if i>N_read_extract and limit: break
                 
-              
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)
 
-        
-def find_sub_fastq_pairs(indir,sample,limit):
-
-    R1s=sorted([f for f in os.listdir(f'{indir}/{sample}/split/') if '_R1_001.part' in f])
-    R2s=[f.replace('_R1_','_R2_') for f in R1s]
-    pairs=[]
-
-    for i in range(len(R1s)): 
-        pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
-        
-    return pairs
-
-def find_sub_fastq_pairs_line_splits(indir,sample,limit):
+def aggregate_stat_dicts(indir,sample,position): 
     
-    #pattern = re.compile(r'_R1_\d{3}\.fastq')
-    pattern = re.compile(r'_R1.part_(.*?)\.fastq')
-
-    R1s = sorted([f for f in os.listdir(f'{indir}/{sample}/split/') if pattern.search(f)])
+    dir_split=f'{indir}/{sample}/split/'
+    files=os.listdir(dir_split)
+    jsons = sorted([f for f in files if f'{position}.json' in f])
     
-    R2s = [f.replace('_R1.','_R2.') for f in R1s]
-    pairs = []
-
-    for i in range(len(R1s)): 
-        pairs.append((f'{indir}/{sample}/split/{R1s[i]}', f'{indir}/{sample}/split/{R2s[i]}', limit))
-        
-    return pairs
-
-def find_sub_fastq_parts(indir,sample):
+    agg_read_csv=f'{indir}/{sample}/{sample}_agg_cnt_{position}.csv'
     
-    #pattern = re.compile(r'_R1_\d{3}\.fastq')
-    pattern = re.compile(r'_R1.part_(.*?)\.fastq')
+    if os.path.isfile(agg_read_csv):
+        print(agg_read_csv,' exists, skip')
+        return
     
-    all_files = os.listdir(f'{indir}/{sample}/split/')
+    data_agg={}
+    for i in tqdm(range(len(jsons))):
+        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
+            data_sub = json.load(json_file)
+            for k in data_sub:
+                if data_agg.get(k) is not None:
+                    data_agg[k] += data_sub[k]
+                else:
+                    data_agg[k]=data_sub[k]
+                    
+    pd.Series(data_agg).to_csv(agg_read_csv)
+    
+def aggregate_dicts(indir,sample,position): 
+    
+    dir_split=f'{indir}/{sample}/split/'
+    files=os.listdir(dir_split)
+    jsons = sorted([f for f in files if f'{position}.json' in f])
+    
+    agg_read_csv=f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv'
+    
+    if os.path.isfile(agg_read_csv):
+        print(agg_read_csv,' exists, skip')
+        return
+    
+    data_agg={}
+    for i in tqdm(range(len(jsons))):
+        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
+            data_sub = json.load(json_file)
+            print(jsons[i],len(data_sub))
+            for k in data_sub:
+                if data_agg.get(k) is not None:
+                    data_agg[k].extend(data_sub[k])
+                else:
+                    data_agg[k]=data_sub[k]
+    read_dict={}
+    umi_dict={}
+    total_reads=0
+    for k in tqdm(data_agg):
+        reads=len(data_agg[k])
+        total_reads+=reads
+        if reads>=1:
+            read_dict[k]=reads
+            umi_dict[k]=len(set(data_agg[k]))
+            
+    print(f'Total Reads Extracted in {position} = {total_reads/1e6}m')
+    
+    umi_cnt=pd.Series(umi_dict)
+    read_cnt=pd.Series(read_dict)
+    
+    read_cnt.to_csv(agg_read_csv)
+    umi_cnt.to_csv(agg_read_csv.replace('read','umi'))
+    
+def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=100000):
+    
+    read_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv')
+    umi_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_umi_cnt_{position}.csv')
+    umi_cnt.columns=['bc','umi_cnt']
+    read_cnt.columns=['bc','read_cnt']
+    agg_bcs=pd.merge(umi_cnt,read_cnt,left_on='bc',right_on='bc',how='inner')
+    agg_bcs['log10_read_cnt']=np.log10(agg_bcs['read_cnt'])
+    agg_bcs['log10_umi_cnt']=np.log10(agg_bcs['umi_cnt'])
+    agg_bcs['dup_rate']=agg_bcs['read_cnt']/agg_bcs['umi_cnt']
+    agg_bcs=agg_bcs.sort_values(by='umi_cnt',ascending=False)
+    
+    sub=agg_bcs.iloc[100:max_expected_barcodes].copy()  # select top max_bc except first 100
+    x = np.histogram(sub.log10_umi_cnt, 100) # fit a histogram
+    smooth = gaussian_filter1d(x[0], 3) # smooth histogram
+    peak_idx,_=find_peaks(-smooth) # find the local minimum
+    print(peak_idx,x[1][:-1][peak_idx])
+    mean_hist=(x[1][1:][peak_idx]+x[1][:-1][peak_idx])/2 # take the mid point of point before and after
+    
+    mean_hist=mean_hist[-1] # take the last value in list of local minima (could be more than one)
 
-    parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
+    wl_df=agg_bcs[agg_bcs.log10_umi_cnt>=mean_hist].copy()
+    wl_df.to_csv(f'{indir}/{sample}/{sample}_{position}_wl.csv.gz',compression='infer')
+    #wl_reads=wl_df.read_cnt.sum()
+    white_list_size=wl_df.shape[0]
     
-    return parts
+    plt.figure(figsize=(4,3))
+    log10_ranks=np.log10(np.arange(1,len(agg_bcs)+1))
+    log10_cnts=agg_bcs.log10_umi_cnt
+    plt.plot(log10_ranks,log10_cnts)#,label='Rank Plot of Reads')
+    plt.xlabel('Log10 Ranks')
+    plt.ylabel('Log10 UMI Counts')
+    plt.title(f'{sample} {position}\n {white_list_size} white listed')
+    plt.plot([0, log10_ranks[-1]], [mean_hist, mean_hist], linewidth=1,label='log10 threshold',c='tab:green')
+    log10_wl=np.log10(white_list_size)
+    plt.plot([log10_wl, log10_wl], [log10_cnts.min(), log10_cnts.max()], linewidth=1,label='log10 size',c='tab:orange')
+    plt.legend(loc="best");
+    
+    qc_pdfs.savefig(bbox_inches='tight')
+    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_rankplot.pdf',bbox_inches='tight');
+    
+    plt.figure(figsize=(4,3))
+    plt.plot(x[1][:-1],x[0], label='Raw Histogram')
+    plt.plot(x[1][:-1],smooth, label='Gaussian Smoothed')
+    plt.xlabel('Log10 UMI Counts')
+    plt.ylabel('Bin Height')
+    plt.title(f'{sample} {position}')
+    plt.plot([mean_hist, mean_hist], [0, np.max(x[0])], linewidth=2,label='Whitelist Threshold')
+    plt.legend(loc="best");
+    
+    qc_pdfs.savefig(bbox_inches='tight')
+    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_histogram.pdf',bbox_inches='tight');
+    
+    plt.figure(figsize=(2,2))
+    mean=wl_df.dup_rate.mean()
+    n_std=3
+    width=wl_df.dup_rate.std()*n_std
+    ticks=np.linspace(mean-width,mean+width,n_std)
+    sns.histplot(wl_df[(wl_df.dup_rate>mean-width) & (wl_df.dup_rate<mean+width) ].dup_rate,bins=50)
+    plt.xticks(ticks)
+    
+    qc_pdfs.savefig(bbox_inches='tight')
+    #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
 
 def save_barcode_batch_json(indir,sample):
     
@@ -572,78 +468,6 @@ def aggregate_barcode_batches(indir,sample):
         with open(agg_batch_json_file, 'w') as json_file:
                 json.dump(data_agg, json_file)
 
-def make_count_mtx_batch(indir,sample,batch,threshold=0):
-    
-    batch = str(batch).zfill(3)
-    
-    adata_file = f'{indir}/{sample}/{sample}_counts_b_{batch}.h5ad'
-    
-    adata_file_nonsparse = f'{indir}/{sample}/{sample}_counts_b_{batch}_nonsparse.h5ad'
-    
-    if os.path.isfile(adata_file):
-        print(adata_file,' exists, skip')
-        return
-   
-    batch_json = f'{indir}/{sample}/split/{sample}.batch_{batch}_quads.json'
-
-    with open(batch_json, 'r') as json_file:
-        data_agg = json.load(json_file)
-
-    #a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz',index_col=1)#['bc']
-    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz',index_col=1)#['bc']
-    
-    a_white = list(data_agg.keys())
-    counts_np = np.zeros( (len(a_white),len(t_white)) )
-    counts_df = pd.DataFrame(counts_np, index=a_white, columns=t_white.index,dtype='float32')
-
-    all_list = []
-    for a_bc in tqdm(a_white):
-        
-        if a_bc not in data_agg:
-            print(f'{a_bc} not in data_agg')
-            continue
-
-        umi_tbc = data_agg[a_bc]
-        umi_bc_dic = {}
-        #short_umis = []
-        #umi_lens = []
-        for a in umi_tbc:
-            if len(a[0])==8:
-                if umi_bc_dic.get(a[0]) is not None:
-                    umi_bc_dic[a[0]].append(a[1])
-                else:
-                    umi_bc_dic[a[0]] = [a[1]]
-            #else:
-            #    short_umis.append(a[0])
-            #    umi_lens.append(len(a[0]))
-        #print(len(short_umis))
-        #print(np.unique(umi_lens,return_counts=True))
-
-        t_bc_cnt={}
-        for k in umi_bc_dic:
-            umi_reads = len(umi_bc_dic[k])
-            if umi_reads > threshold:
-                uni_t_bc=set(umi_bc_dic[k])
-                if len(uni_t_bc) > 1:
-                    bcs, cnts = np.unique(umi_bc_dic[k],return_counts=True)
-                    if np.max(cnts/umi_reads) > .74: # the concordance to accept the UMI 2/2, 3/3, 3/4, 4/5 or better 
-                        t_bc = bcs[np.argmax(cnts/umi_reads)]
-                        seq_counter(t_bc_cnt,t_bc)
-                else:
-                    t_bc = list(uni_t_bc)[0]
-                    seq_counter(t_bc_cnt,t_bc)
-
-        counts_df.loc[a_bc,list(t_bc_cnt.keys())]=list(t_bc_cnt.values())
-        
-    print('making AnnData')
-    counts_df = AnnData(counts_df,dtype='float32')
-    #print('writing AnnData')
-    #counts_df.write_h5ad(adata_file_nonsparse,compression='gzip')
-    print('making sparse AnnData')
-    counts_df.X = csr_matrix(counts_df.X)
-    print('writing sparse AnnData')
-    counts_df.write_h5ad(adata_file,compression='gzip')
-
 def make_count_sparse_mtx_batch(indir,sample,batch,threshold=0):
     
     batch = str(batch).zfill(3)
@@ -710,84 +534,3 @@ def make_count_sparse_mtx_batch(indir,sample,batch,threshold=0):
     adata.obs.index = a_white
     
     adata.write_h5ad(adata_file,compression='gzip')
-    
-    
-def make_count_mtx(indir,sample,subset=-1,threshold=0):
-    
-    adata_file = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}.h5ad'
-    
-    adata_file_nonsparse = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}_nonsparse.h5ad'
-    
-    if os.path.isfile(adata_file):
-        print(adata_file,' exists, skip')
-        return
-    
-    position='quads'
-
-    dir_split = f'{indir}/{sample}/split/'
-    files = os.listdir(dir_split)
-    jsons = sorted([f for f in files if f'{position}.json' in f])
-    
-    jsons = jsons[:subset]
-    print(len(jsons))
-
-    data_agg = {}
-
-    for i in tqdm(range(len(jsons))):
-        with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
-            data_sub = json.load(json_file)
-            print(jsons[i],len(data_sub))
-            for k in data_sub:
-                if data_agg.get(k) is not None:
-                    data_agg[k].extend(data_sub[k])
-                else:
-                    data_agg[k]=data_sub[k]
-
-    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz',index_col=1)#['bc']
-    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz',index_col=1)#['bc']
-    
-    counts_np = np.zeros( (len(a_white),len(t_white)) )
-    counts_df = pd.DataFrame(counts_np, index=a_white.index, columns=t_white.index)
-
-    all_list = []
-    for a_bc in tqdm(a_white.index):
-        
-        if a_bc not in data_agg:
-            print(f'{a_bc} not in data_agg')
-            continue
-
-        umi_tbc = data_agg[a_bc]
-        umi_bc_dic = {}
-        for a in umi_tbc:
-            if len(a[0])==8:
-                if umi_bc_dic.get(a[0]) is not None:
-                    umi_bc_dic[a[0]].append(a[1])
-                else:
-                    umi_bc_dic[a[0]] = [a[1]]
-            else:
-                print(a[0])
-
-        t_bc_cnt={}
-        for k in umi_bc_dic:
-            umi_reads = len(umi_bc_dic[k])
-            if umi_reads > threshold:
-                uni_t_bc=set(umi_bc_dic[k])
-                if len(uni_t_bc) > 1:
-                    bcs, cnts = np.unique(umi_bc_dic[k],return_counts=True)
-                    if np.max(cnts/umi_reads) > .74: # the concordance to accept the UMI 2/2, 3/3, 3/4, 4/5 or better 
-                        t_bc = bcs[np.argmax(cnts/umi_reads)]
-                        seq_counter(t_bc_cnt,t_bc)
-                else:
-                    t_bc = list(uni_t_bc)[0]
-                    seq_counter(t_bc_cnt,t_bc)
-
-        counts_df.loc[a_bc,list(t_bc_cnt.keys())]=list(t_bc_cnt.values())
-        
-    print('making AnnData')
-    counts_df = AnnData(counts_df,dtype='float32')
-    print('writing AnnData')
-    counts_df.write_h5ad(adata_file_nonsparse,compression='gzip')
-    print('making sparse AnnData')
-    counts_df.X = csr_matrix(counts_df.X)
-    print('writing sparse AnnData')
-    counts_df.write_h5ad(adata_file,compression='gzip')
