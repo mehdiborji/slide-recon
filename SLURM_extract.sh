@@ -10,5 +10,5 @@ echo 'sample =' $2
 echo 'max_anchors =' $3
 echo 'max_targets =' $4
 
-python ~/reconstruction/bc_umi_pipeline.py -c 16 -i $1 -s $2 -ma $3 -mt $4
+python ~/reconstruction/bc_umi_pipeline.py -c 20 -i $1 -s $2 -ma $3 -mt $4
 #-l

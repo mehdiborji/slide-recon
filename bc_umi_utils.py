@@ -15,6 +15,7 @@ import seaborn as sns
 from scipy.sparse import csr_matrix
 from anndata import AnnData
 import re
+from collections import defaultdict
 
 UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
@@ -296,25 +297,26 @@ def aggregate_dicts(indir,sample,position):
         print(agg_read_csv,' exists, skip')
         return
     
-    data_agg={}
+    data_agg = defaultdict(list)
+    
     for i in tqdm(range(len(jsons))):
         with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
             data_sub = json.load(json_file)
             print(jsons[i],len(data_sub))
-            for k in data_sub:
-                if data_agg.get(k) is not None:
-                    data_agg[k].extend(data_sub[k])
-                else:
-                    data_agg[k]=data_sub[k]
-    read_dict={}
-    umi_dict={}
-    total_reads=0
+            for key, value in data_sub.items():
+                data_agg[key].extend(value)
+            
+    read_dict = {}
+    umi_dict = {}
+    total_reads = 0
     for k in tqdm(data_agg):
-        reads=len(data_agg[k])
-        total_reads+=reads
-        if reads>=1:
-            read_dict[k]=reads
-            umi_dict[k]=len(set(data_agg[k]))
+        reads = len(data_agg[k])
+        total_reads += reads
+        if reads >= 3:
+            umis = len(set(data_agg[k]))
+            if umis >= 2:
+                read_dict[k] = reads
+                umi_dict[k] = umis
             
     print(f'Total Reads Extracted in {position} = {total_reads/1e6}m')
     

@@ -23,7 +23,7 @@ max_targets = args.max_targets
 
 ######################################################
 
-bc_umi_utils.split_fastq_by_lines(indir,sample,4e6)
+bc_umi_utils.split_fastq_by_lines(indir,sample,4e7)
 
 ######################################################
 
