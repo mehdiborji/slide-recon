@@ -131,8 +131,8 @@ def extract_bc_umi_dict(indir,sample,part,limit):
             
             if filter_poly:
                 
-                polyT_cnt = seq1[-8:].count('T')
-                polyA_cnt = seq2[-8:].count('A')
+                polyT_cnt = seq1[42:50].count('T')
+                polyA_cnt = seq2[42:50].count('A')
 
                 if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
 
@@ -195,8 +195,6 @@ def extract_quad_dict(indir,sample,part,limit):
     
     i = 0; max_dist = 2; quad_dict = {}
     
-    #part = f'part_{str(part).zfill(3)}'
-    
     R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
     R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
     
@@ -221,41 +219,16 @@ def extract_quad_dict(indir,sample,part,limit):
             seq1 = r1.sequence
             seq2 = r2.sequence
             
-            len1 = len(seq1)
-            len2 = len(seq2)
-            
-            if filter_poly:
-                
-                polyT_cnt = seq1[-8:].count('T')
-                polyA_cnt = seq2[-8:].count('A')
+            a_bc, a_umi = seq_slice(seq1)
+            t_bc, t_umi = seq_slice(seq2)
 
-                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
-
-                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
-                    if edit_pass1 and edit_pass2:
-
-                        a_bc, a_umi = seq_slice(seq1)
-                        t_bc, t_umi = seq_slice(seq2)
-
-                        if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
-                            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
-                        if i>N_read_extract and limit: break
-            else:
-                
+            if a_bc in a_dict and t_bc in t_dict:
                 edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
                 edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
+                
                 if edit_pass1 and edit_pass2:
-
-                    a_bc, a_umi = seq_slice(seq1)
-                    t_bc, t_umi = seq_slice(seq2)
-
-                    if (a_dict.get(a_bc) is not None) and (t_dict.get(t_bc) is not None):
-                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
+                    quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+                    
                     if i>N_read_extract and limit: break
                 
     with open(quads_json, 'w') as json_file:
@@ -465,12 +438,12 @@ def aggregate_barcode_batches(indir,sample):
                     if data_agg.get(k) is not None:
                         data_agg[k].extend(data_sub[k])
                     else:
-                        data_agg[k]=data_sub[k]
+                        data_agg[k] = data_sub[k]
                         
         with open(agg_batch_json_file, 'w') as json_file:
                 json.dump(data_agg, json_file)
 
-def make_count_sparse_mtx_batch(indir,sample,batch,threshold=0):
+def make_count_sparse_mtx_batch(indir, sample, batch, threshold=0):
     
     batch = str(batch).zfill(3)
     adata_file = f'{indir}/{sample}/{sample}_counts_b_{batch}.h5ad'
@@ -484,19 +457,17 @@ def make_count_sparse_mtx_batch(indir,sample,batch,threshold=0):
     with open(batch_json, 'r') as json_file:
         data_agg = json.load(json_file)
         
-    subset_anchors = 100000
-
     t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']#,index_col=1)#['bc']
     t_white = t_white.reset_index()
     t_white = t_white.set_index('bc')
     
-    a_white = list(data_agg.keys()) [:subset_anchors]
+    a_white = list(data_agg.keys())
 
     rows_idx = []
     cols_idx = []
     row_col_values = []
     
-    for a_idx, a_bc in enumerate(tqdm(a_white[:subset_anchors])):
+    for a_idx, a_bc in enumerate(tqdm(a_white)):
         #print(a_idx)
         if a_bc not in data_agg:
             print(f'{a_bc} not in data_agg')
