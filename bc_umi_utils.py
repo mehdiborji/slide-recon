@@ -67,23 +67,23 @@ def quad_dict_store(quad_dict,quad_key,quad_items):
         quad_dict[quad_key].extend([quad_items])
         
 def UP_edit_pass(read_seq,max_dist):
+    
     edit = edlib.align(read_seq[8:26],UP_seq,'HW','distance',max_dist)
     ed_dist = edit['editDistance']
     boolean_pass = ed_dist >= 0 and ed_dist <= max_dist
+    
     return(boolean_pass, ed_dist)
 
 def seq_slice(read_seq):
+    
     bc = read_seq[:8]+read_seq[26:33]
     umi = read_seq[33:42]
     return(bc, umi)
 
 def find_sub_fastq_parts(indir,sample):
     
-    #pattern = re.compile(r'_R1_\d{3}\.fastq')
     pattern = re.compile(r'_R1.part_(.*?)\.fastq')
-    
     all_files = os.listdir(f'{indir}/{sample}/split/')
-
     parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
     
     return parts
@@ -507,3 +507,101 @@ def make_count_sparse_mtx_batch(indir, sample, batch, threshold=0):
     adata.obs.index = a_white
     
     adata.write_h5ad(adata_file,compression='gzip')
+    
+
+def write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict):
+                    
+    bc, umi = seq_slice(r1.sequence)
+    bc_q, umi_q = seq_slice(r1.quality)
+    
+    quad_dict_store(bcs_dict, bc, umi)
+
+    R1_clean.write(f'@{r1.name}\n')
+    R1_clean.write(f'{bc+umi}\n')
+    R1_clean.write('+\n')
+    R1_clean.write(f'{bc_q+umi_q}\n')
+
+    R2_clean.write(f'@{r2.name}\n')
+    R2_clean.write(f'{r2.sequence}\n')
+    R2_clean.write('+\n')
+    R2_clean.write(f'{r2.quality}\n')
+                
+
+def extract_clean_fastq(indir,sample,part,limit):
+    
+    i = 0
+    max_dist = 2
+    
+    R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
+    R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
+    
+    R1_fastq_clean = f'{indir}/{sample}/split/{sample}_R1.part_{part}_clean.fastq'
+    R2_fastq_clean = f'{indir}/{sample}/split/{sample}_R2.part_{part}_clean.fastq'
+    
+    bcs_json = f'{indir}/{sample}/split/{sample}.part_{part}_bcs.json'
+    r1_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_edits.json'
+    r1_polyA_cnt_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_polyA_cnt.json'
+    r1_polyT_cnt_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_polyT_cnt.json'
+    
+    bcs_dict = {}
+    r1_edits_dict = {}
+    r1_polyA_cnt_dict = {}
+    r1_polyT_cnt_dict = {}
+    
+    R1_clean = open(R1_fastq_clean, 'w')
+    R2_clean = open(R2_fastq_clean, 'w')
+
+    #if os.path.isfile(bcs_json):
+    #    print(bcs_json,' exists, skip')
+    #    return
+    
+    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
+        for r1, r2 in tqdm(zip(R1, R2)):
+            
+            i += 1
+            
+            seq1 = r1.sequence
+            seq2 = r2.sequence
+            
+            r2_UP_not = UP_seq not in seq2
+            r1_polyN = seq1.count('N')<=3
+            
+            if r2_UP_not and r1_polyN:
+                if seq1[8:26]==UP_seq:
+                    
+                    polyT_cnt = seq1[42:50].count('T')
+                    polyA_cnt = seq1[42:50].count('A')
+                    seq_counter(r1_polyA_cnt_dict,polyA_cnt)
+                    seq_counter(r1_polyT_cnt_dict,polyT_cnt)
+                        
+                    seq_counter(r1_edits_dict,0)
+                    write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
+                else:
+                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                    if edit_pass1:
+                        
+                        polyT_cnt = seq1[42:50].count('T')
+                        polyA_cnt = seq1[42:50].count('A')
+                        seq_counter(r1_polyA_cnt_dict,polyA_cnt)
+                        seq_counter(r1_polyT_cnt_dict,polyT_cnt)
+                        
+                        seq_counter(r1_edits_dict,edit1)
+                        write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
+                        
+            if i>N_read_extract and limit: break
+            
+    R1_clean.close()
+    R2_clean.close()
+    
+    with open(bcs_json, 'w') as json_file:
+        json.dump(bcs_dict, json_file)
+        
+    with open(r1_edits_json, 'w') as json_file:
+        json.dump(r1_edits_dict, json_file)
+        
+    with open(r1_polyA_cnt_json, 'w') as json_file:
+        json.dump(r1_polyA_cnt_dict, json_file)
+        
+    with open(r1_polyT_cnt_json, 'w') as json_file:
+        json.dump(r1_polyT_cnt_dict, json_file)
+        
