@@ -21,7 +21,7 @@ UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
 filter_poly = True
 
-N_read_extract = 100000
+N_read_extract = 500000
 
 print(N_read_extract)
 
@@ -47,6 +47,7 @@ def split_fastq_by_lines(indir,sample,lines=4e6):
         split_R1_name = f'{split_dir}/{sample}_R1.part_'
         split_R2_name = f'{split_dir}/{sample}_R2.part_'
         
+        # zcat and split by n=lines (4x number of reads) add a suffix with 3 digits and prefix of 'split_R1_name'
         command_R1 = f'zcat {R1} | split -a 3 -l {int(lines)} -d --additional-suffix=.fastq - {split_R1_name}'
         command_R2 = command_R1.replace('_R1','_R2')
 
@@ -85,6 +86,7 @@ def find_sub_fastq_parts(indir,sample):
     pattern = re.compile(r'_R1.part_(.*?)\.fastq')
     all_files = os.listdir(f'{indir}/{sample}/split/')
     parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
+    parts = sorted(np.unique([f.split('.part_')[1][:3] for f in all_files if pattern.search(f)])) # part + 3 digits because we did split suffix with 3 digits
     
     return parts
 
@@ -526,6 +528,13 @@ def write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict):
     R2_clean.write('+\n')
     R2_clean.write(f'{r2.quality}\n')
                 
+def UP_edit_R2(read_seq,max_dist):
+    
+    edit = edlib.align(UP_seq,read_seq,'HW','distance',max_dist)
+    ed_dist = edit['editDistance']
+    boolean_fail = ed_dist <0
+    
+    return(boolean_fail, ed_dist)
 
 def extract_clean_fastq(indir,sample,part,limit):
     
@@ -567,27 +576,32 @@ def extract_clean_fastq(indir,sample,part,limit):
             r1_polyN = seq1.count('N')<=3
             
             if r2_UP_not and r1_polyN:
-                if seq1[8:26]==UP_seq:
-                    
-                    polyT_cnt = seq1[42:50].count('T')
-                    polyA_cnt = seq1[42:50].count('A')
-                    seq_counter(r1_polyA_cnt_dict,polyA_cnt)
-                    seq_counter(r1_polyT_cnt_dict,polyT_cnt)
-                        
-                    seq_counter(r1_edits_dict,0)
-                    write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
-                else:
-                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                    if edit_pass1:
-                        
+                
+                edit_fail2, edit2 = UP_edit_R2(seq2,4)
+                
+                if edit_fail2:
+    
+                    if seq1[8:26]==UP_seq:
+
                         polyT_cnt = seq1[42:50].count('T')
                         polyA_cnt = seq1[42:50].count('A')
                         seq_counter(r1_polyA_cnt_dict,polyA_cnt)
                         seq_counter(r1_polyT_cnt_dict,polyT_cnt)
-                        
-                        seq_counter(r1_edits_dict,edit1)
+
+                        seq_counter(r1_edits_dict,0)
                         write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
-                        
+                    else:
+                        edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                        if edit_pass1:
+
+                            polyT_cnt = seq1[42:50].count('T')
+                            polyA_cnt = seq1[42:50].count('A')
+                            seq_counter(r1_polyA_cnt_dict,polyA_cnt)
+                            seq_counter(r1_polyT_cnt_dict,polyT_cnt)
+
+                            seq_counter(r1_edits_dict,edit1)
+                            write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
+
             if i>N_read_extract and limit: break
             
     R1_clean.close()
