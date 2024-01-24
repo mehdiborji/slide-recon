@@ -511,23 +511,39 @@ def make_count_sparse_mtx_batch(indir, sample, batch, threshold=0):
     adata.write_h5ad(adata_file,compression='gzip')
     
 
-def write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict):
-                    
+def write_fastq_pair(R1_clean, R2_clean, r1, r2, bcs_dict, r1_polyA_cnt_dict, r1_polyT_cnt_dict):
+    
+    seq1 = r1.sequence
+    seq2 = r2.sequence
+    
     bc, umi = seq_slice(r1.sequence)
     bc_q, umi_q = seq_slice(r1.quality)
     
-    quad_dict_store(bcs_dict, bc, umi)
+    polyT_cnt = seq1[42:50].count('T')
+    polyA_cnt = seq1[42:50].count('A')
+    seq_counter(r1_polyA_cnt_dict,polyA_cnt)
+    seq_counter(r1_polyT_cnt_dict,polyT_cnt)
+    
+    polyT_cnt_r2 = seq2.count('T') / len(seq2)
+    polyA_cnt_r2 = seq2.count('A') / len(seq2)
+    polyG_cnt_r2 = seq2.count('G') / len(seq2)
+    
+    umi_polyT = umi.count('T')
+    
+    if umi_polyT<=7 and polyT_cnt_r2<=.6 and polyA_cnt_r2<=.6 and polyG_cnt_r2<=.6:
 
-    R1_clean.write(f'@{r1.name}\n')
-    R1_clean.write(f'{bc+umi}\n')
-    R1_clean.write('+\n')
-    R1_clean.write(f'{bc_q+umi_q}\n')
+        quad_dict_store(bcs_dict, bc, umi)
 
-    R2_clean.write(f'@{r2.name}\n')
-    R2_clean.write(f'{r2.sequence}\n')
-    R2_clean.write('+\n')
-    R2_clean.write(f'{r2.quality}\n')
-                
+        R1_clean.write(f'@{r1.name}\n')
+        R1_clean.write(f'{bc+umi}\n')
+        R1_clean.write('+\n')
+        R1_clean.write(f'{bc_q+umi_q}\n')
+
+        R2_clean.write(f'@{r2.name}\n')
+        R2_clean.write(f'{seq2}\n')
+        R2_clean.write('+\n')
+        R2_clean.write(f'{r2.quality}\n')
+    
 def UP_edit_R2(read_seq,max_dist):
     
     edit = edlib.align(UP_seq,read_seq,'HW','distance',max_dist)
@@ -556,13 +572,13 @@ def extract_clean_fastq(indir,sample,part,limit):
     r1_edits_dict = {}
     r1_polyA_cnt_dict = {}
     r1_polyT_cnt_dict = {}
+
+    if os.path.isfile(bcs_json):
+        print(bcs_json,' exists, skip')
+        return
     
     R1_clean = open(R1_fastq_clean, 'w')
     R2_clean = open(R2_fastq_clean, 'w')
-
-    #if os.path.isfile(bcs_json):
-    #    print(bcs_json,' exists, skip')
-    #    return
     
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
@@ -572,35 +588,25 @@ def extract_clean_fastq(indir,sample,part,limit):
             seq1 = r1.sequence
             seq2 = r2.sequence
             
-            r2_UP_not = UP_seq not in seq2
-            r1_polyN = seq1.count('N')<=3
-            
-            if r2_UP_not and r1_polyN:
+            len1 = len(seq1)
+            len2 = len(seq2)
+
+            if len1 >= 48 and len2 >= 48:
                 
-                edit_fail2, edit2 = UP_edit_R2(seq2,4)
-                
-                if edit_fail2:
-    
-                    if seq1[8:26]==UP_seq:
+                r2_UP_not = UP_seq not in seq2
+                r1_polyN = seq1.count('N')<=2
 
-                        polyT_cnt = seq1[42:50].count('T')
-                        polyA_cnt = seq1[42:50].count('A')
-                        seq_counter(r1_polyA_cnt_dict,polyA_cnt)
-                        seq_counter(r1_polyT_cnt_dict,polyT_cnt)
-
-                        seq_counter(r1_edits_dict,0)
-                        write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
-                    else:
-                        edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                        if edit_pass1:
-
-                            polyT_cnt = seq1[42:50].count('T')
-                            polyA_cnt = seq1[42:50].count('A')
-                            seq_counter(r1_polyA_cnt_dict,polyA_cnt)
-                            seq_counter(r1_polyT_cnt_dict,polyT_cnt)
-
-                            seq_counter(r1_edits_dict,edit1)
-                            write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict)
+                if r2_UP_not and r1_polyN:
+                    edit_fail2, edit2 = UP_edit_R2(seq2,4)
+                    if edit_fail2:
+                        if seq1[8:26]==UP_seq:
+                            seq_counter(r1_edits_dict,0)
+                            write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict,r1_polyA_cnt_dict,r1_polyT_cnt_dict)
+                        else:
+                            edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                            if edit_pass1:
+                                seq_counter(r1_edits_dict,edit1)
+                                write_fastq_pair(R1_clean,R2_clean,r1,r2,bcs_dict,r1_polyA_cnt_dict,r1_polyT_cnt_dict)
 
             if i>N_read_extract and limit: break
             

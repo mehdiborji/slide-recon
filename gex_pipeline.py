@@ -22,7 +22,7 @@ limit = args.limit
 bc_umi_utils.split_fastq_by_lines(indir,sample,4e7)
 
 ######################################################
-"""
+
 parts = bc_umi_utils.find_sub_fastq_parts(indir,sample)
 args = [(indir,sample,part,limit) for part in parts]
 
@@ -30,4 +30,4 @@ pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_clean_fastq, args)
 pool.close()
 pool.join()
-"""
+
