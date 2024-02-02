@@ -580,12 +580,17 @@ def extract_clean_fastq(indir,sample,part,limit):
     R2_fastq_recon = f'{indir}/{sample}/split/{sample}_R2.part_{part}_recon.fastq'
     
     bcs_json = f'{indir}/{sample}/split/{sample}.part_{part}_bcs.json'
+    
     r1_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_edits.json'
+    r2_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_r2_edits.json'
+    
     r1_polyA_cnt_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_polyA_cnt.json'
     r1_polyT_cnt_json = f'{indir}/{sample}/split/{sample}.part_{part}_r1_polyT_cnt.json'
     
     bcs_dict = {}
     r1_edits_dict = {}
+    r2_edits_dict = {}
+    
     r1_polyA_cnt_dict = {}
     r1_polyT_cnt_dict = {}
 
@@ -615,22 +620,27 @@ def extract_clean_fastq(indir,sample,part,limit):
                 if seq1.count('N')<=5:
                     
                     r1_UP = seq1[8:26] == UP_seq
-                    r2_UP = seq2[8:26] == UP_seq
-
-                    if not r2_UP:
-                        #edit_fail2, edit2 = UP_edit_R2(seq2,4)
-                        #if edit_fail2:
-                        if r1_UP:
-                            seq_counter(r1_edits_dict,0)
-                            write_fastq_pair_clean(R1_clean,R2_clean,r1,r2,bcs_dict,r1_polyA_cnt_dict,r1_polyT_cnt_dict)
-                        else:
-                            edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                            if edit_pass1:
-                                seq_counter(r1_edits_dict,edit1)
-                                write_fastq_pair_clean(R1_clean,R2_clean,r1,r2,bcs_dict,r1_polyA_cnt_dict,r1_polyT_cnt_dict)
+                    if r1_UP:
+                        seq_counter(r1_edits_dict,0)
                     else:
-                        if r1_UP:
+                        edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                        seq_counter(r1_edits_dict,edit1)
+                        
+                    r2_UP = seq2[8:26] == UP_seq
+                    
+                    if r2_UP:
+                        seq_counter(r2_edits_dict,0)
+                    else:
+                        edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+                        seq_counter(r2_edits_dict,edit2)
+                        
+                    if r1_UP or edit_pass1:
+                        
+                        if r2_UP or edit_pass2:
                             write_fastq_pair_recon(R1_recon,R2_recon,r1,r2)
+                        else:
+                            write_fastq_pair_clean(R1_clean,R2_clean,r1,r2,bcs_dict,r1_polyA_cnt_dict,r1_polyT_cnt_dict)
+        
 
             if i>N_read_extract and limit: break
             
@@ -645,6 +655,9 @@ def extract_clean_fastq(indir,sample,part,limit):
         
     with open(r1_edits_json, 'w') as json_file:
         json.dump(r1_edits_dict, json_file)
+        
+    with open(r2_edits_json, 'w') as json_file:
+        json.dump(r2_edits_dict, json_file)
         
     with open(r1_polyA_cnt_json, 'w') as json_file:
         json.dump(r1_polyA_cnt_dict, json_file)
