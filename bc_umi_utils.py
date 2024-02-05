@@ -510,7 +510,6 @@ def make_count_sparse_mtx_batch(indir, sample, batch, threshold=0):
     
     adata.write_h5ad(adata_file,compression='gzip')
     
-
 def write_fastq_pair_clean(R1_clean, R2_clean, r1, r2, bcs_dict, r1_polyA_cnt_dict, r1_polyT_cnt_dict):
     
     seq1 = r1.sequence
@@ -523,6 +522,7 @@ def write_fastq_pair_clean(R1_clean, R2_clean, r1, r2, bcs_dict, r1_polyA_cnt_di
     polyA_cnt = seq1[42:50].count('A')
     seq_counter(r1_polyA_cnt_dict,polyA_cnt)
     seq_counter(r1_polyT_cnt_dict,polyT_cnt)
+    
     """
     polyT_cnt_r2 = seq2.count('T') / len(seq2)
     polyA_cnt_r2 = seq2.count('A') / len(seq2)

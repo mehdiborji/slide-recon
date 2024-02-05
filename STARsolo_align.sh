@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH -c 20
-#SBATCH --mem=80G
-#SBATCH -t 0:25:00
+#SBATCH --mem=40G
+#SBATCH -t 0:35:00
 #SBATCH -p short
 #SBATCH -o alignment_job_%A.out
 
@@ -37,6 +37,11 @@ STAR \
 --outSAMattributes AS CR UR CB UB GX GN \
 --soloOutFormatFeaturesGeneField3 - \
 --soloCellReadStats Standard
+
+#--outFilterScoreMinOverLread .01
+#--outFilterMatchNmin
+#--outFilterMatchNminOverLread
+#--outFilterScoreMin 27
 #--readFilesCommand zcat
 #--alignIntronMax 1 \
 #--readMapNumber $5 \
