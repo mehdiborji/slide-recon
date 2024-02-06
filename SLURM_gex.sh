@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -c 20
-#SBATCH --mem=20G
-#SBATCH -t 0:30:00
+#SBATCH --mem=40G
+#SBATCH -t 2:30:00
 #SBATCH -p short
 #SBATCH -o slide_gex_count_job_%A.out
 

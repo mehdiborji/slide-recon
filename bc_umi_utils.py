@@ -16,6 +16,7 @@ from scipy.sparse import csr_matrix
 from anndata import AnnData
 import re
 from collections import defaultdict
+from multiprocessing import Pool
 
 UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
@@ -259,6 +260,13 @@ def aggregate_stat_dicts(indir,sample,position):
                     data_agg[k]=data_sub[k]
                     
     pd.Series(data_agg).to_csv(agg_read_csv)
+
+def paralled_json_agg(json_file_path,data_agg):
+    with open(json_file_path, 'r') as json_file:
+        data_sub = json.load(json_file)
+        print(json_file_path,len(data_sub))
+        for key, value in data_sub.items():
+            data_agg[key].extend(value)
     
 def aggregate_dicts(indir,sample,position): 
     
@@ -274,13 +282,25 @@ def aggregate_dicts(indir,sample,position):
     
     data_agg = defaultdict(list)
     
+    args = []
+    for i in tqdm(range(len(jsons[:8]))):
+        args.append((f'{dir_split}{jsons[i]}',data_agg))
+        
+    #print(args)
+    
+    pool = Pool(4)
+    results = pool.starmap(paralled_json_agg, args)
+    pool.close()
+    pool.join()
+    
+    """
     for i in tqdm(range(len(jsons))):
         with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
             data_sub = json.load(json_file)
             print(jsons[i],len(data_sub))
             for key, value in data_sub.items():
                 data_agg[key].extend(value)
-            
+    """
     read_dict = {}
     umi_dict = {}
     total_reads = 0
@@ -515,8 +535,11 @@ def write_fastq_pair_clean(R1_clean, R2_clean, r1, r2, bcs_dict, r1_polyA_cnt_di
     seq1 = r1.sequence
     seq2 = r2.sequence
     
-    bc, umi = seq_slice(r1.sequence)
-    bc_q, umi_q = seq_slice(r1.quality)
+    qual1 = r1.quality
+    qual2 = r2.quality
+    
+    bc, umi = seq_slice(seq1)
+    bc_q, umi_q = seq_slice(qual1)
     
     polyT_cnt = seq1[42:50].count('T')
     polyA_cnt = seq1[42:50].count('A')
@@ -541,21 +564,21 @@ def write_fastq_pair_clean(R1_clean, R2_clean, r1, r2, bcs_dict, r1_polyA_cnt_di
     R1_clean.write(f'{bc_q+umi_q}\n')
 
     R2_clean.write(f'@{r2.name}\n')
-    R2_clean.write(f'{seq2}\n')
+    R2_clean.write(f'{seq2[:50]}\n')
     R2_clean.write('+\n')
-    R2_clean.write(f'{r2.quality}\n')
+    R2_clean.write(f'{qual2[:50]}\n')
     
 def write_fastq_pair_recon(R1_recon, R2_recon, r1, r2):
     
     R1_recon.write(f'@{r1.name}\n')
-    R1_recon.write(f'{r1.sequence}\n')
+    R1_recon.write(f'{r1.sequence[:50]}\n')
     R1_recon.write('+\n')
-    R1_recon.write(f'{r1.quality}\n')
+    R1_recon.write(f'{r1.quality[:50]}\n')
 
     R2_recon.write(f'@{r2.name}\n')
-    R2_recon.write(f'{r2.sequence}\n')
+    R2_recon.write(f'{r2.sequence[:50]}\n')
     R2_recon.write('+\n')
-    R2_recon.write(f'{r2.quality}\n')
+    R2_recon.write(f'{r2.quality[:50]}\n')
     
 def UP_edit_R2(read_seq,max_dist):
     

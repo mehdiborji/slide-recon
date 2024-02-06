@@ -19,7 +19,7 @@ limit = args.limit
 
 ######################################################
 
-bc_umi_utils.split_fastq_by_lines(indir,sample,4e7)
+bc_umi_utils.split_fastq_by_lines(indir,sample,16e7)
 
 ######################################################
 
@@ -31,3 +31,4 @@ results = pool.starmap(bc_umi_utils.extract_clean_fastq, args)
 pool.close()
 pool.join()
 
+#bc_umi_utils.aggregate_dicts(indir,sample,'bcs')
