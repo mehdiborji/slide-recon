@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH -c 20
-#SBATCH --mem=40G
-#SBATCH -t 0:35:00
+#SBATCH --mem=80G
+#SBATCH -t 5:35:00
 #SBATCH -p short
 #SBATCH -o alignment_job_%A.out
 

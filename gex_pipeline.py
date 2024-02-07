@@ -19,7 +19,7 @@ limit = args.limit
 
 ######################################################
 
-bc_umi_utils.split_fastq_by_lines(indir,sample,16e7)
+bc_umi_utils.split_fastq_by_lines(indir,sample,8e7)
 
 ######################################################
 
