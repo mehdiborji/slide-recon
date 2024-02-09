@@ -94,7 +94,7 @@ def find_sub_fastq_parts(indir,sample):
 def extract_bc_umi_dict(indir,sample,part,limit):
     
     i = 0
-    max_dist = 2
+    max_dist = 3
     
     R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
     R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
@@ -137,7 +137,7 @@ def extract_bc_umi_dict(indir,sample,part,limit):
                 polyT_cnt = seq1[42:50].count('T')
                 polyA_cnt = seq2[42:50].count('A')
 
-                if len1 >= 49 and len2 >= 49 and polyT_cnt>=7 and polyA_cnt>=7:
+                if (len1 >= 48 and polyT_cnt>=6) | (len2 >= 48 and polyA_cnt>=6):
 
                     edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
                     edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
@@ -196,7 +196,7 @@ def extract_bc_umi_dict(indir,sample,part,limit):
 
 def extract_quad_dict(indir,sample,part,limit):
     
-    i = 0; max_dist = 2; quad_dict = {}
+    i = 0; max_dist = 3; quad_dict = {}
     
     R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
     R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
@@ -222,18 +222,28 @@ def extract_quad_dict(indir,sample,part,limit):
             seq1 = r1.sequence
             seq2 = r2.sequence
             
+            len1 = len(seq1)
+            len2 = len(seq2)
+                    
             a_bc, a_umi = seq_slice(seq1)
             t_bc, t_umi = seq_slice(seq2)
+            
 
             if a_bc in a_dict and t_bc in t_dict:
-                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
                 
-                if edit_pass1 and edit_pass2:
-                    quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+                polyT_cnt = seq1[42:50].count('T')
+                polyA_cnt = seq2[42:50].count('A')
+                
+                if (len1 >= 48 and polyT_cnt>=6) | (len2 >= 48 and polyA_cnt>=6):
                     
-                    if i>N_read_extract and limit: break
-                
+                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
+                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+
+                    if edit_pass1 and edit_pass2:
+                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+                        if i>N_read_extract and limit: break
+                        
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)
 
@@ -282,6 +292,7 @@ def aggregate_dicts(indir,sample,position):
     
     data_agg = defaultdict(list)
     
+    """
     args = []
     for i in tqdm(range(len(jsons[:8]))):
         args.append((f'{dir_split}{jsons[i]}',data_agg))
@@ -300,7 +311,7 @@ def aggregate_dicts(indir,sample,position):
             print(jsons[i],len(data_sub))
             for key, value in data_sub.items():
                 data_agg[key].extend(value)
-    """
+    
     read_dict = {}
     umi_dict = {}
     total_reads = 0
