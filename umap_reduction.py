@@ -16,7 +16,7 @@ parser.add_argument('--adata_name', type=str)
 parser.add_argument('--metric', type=str)
 parser.add_argument('--n_neighbors', type=int)
 parser.add_argument('--min_dist', type=float)
-parser.add_argument('--n_trees', type=str)
+parser.add_argument('--spread', type=float)
 #parser.add_argument('--subset', type=int)
 #parser.add_argument('--threshold', type=int)
 
@@ -29,18 +29,21 @@ adata_name = args.adata_name
 metric = args.metric
 n_neighbors = args.n_neighbors
 min_dist = args.min_dist
-n_trees = args.n_trees
+spread = args.spread
 #subset = args.subset
 #threshold = args.threshold
 
-def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist, n_trees):
+def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist, spread):
     
     begin_epoch = 500
     end_epoch = 10000
     step = 500
-    epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
     
-    umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_{n_trees}'
+    #epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
+    
+    epoch_list = np.unique(np.logspace(0, 4, num=500, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
+
+    umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_{spread}'
     if not os.path.exists(umap_dir):
         os.makedirs(umap_dir)
         print(f'{umap_dir} created')
@@ -54,15 +57,16 @@ def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist
     #adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
     adata = sc.read(f'{indir}/{sample}/{adata_name}.h5ad')
     #sc.pp.log1p(adata)
-    reducer = umap.UMAP(metric = metric,
+    reducer = umap.UMAP(metric = metric, 
                     n_neighbors = n_neighbors, 
                     min_dist = min_dist, 
+                    spread = spread,
                     low_memory = False, 
-                    n_components = 2,
+                    n_components = 2, 
                     verbose = True, 
-                    n_epochs = epoch_list,
-                    # output_dens = True,
-                    # local_connectivity = 30,
+                    n_epochs = epoch_list, 
+                    # output_dens = True, 
+                    # local_connectivity = 30, 
                     learning_rate = 1)
     embedding = reducer.fit_transform(adata.X)
 
@@ -190,7 +194,7 @@ if __name__ == '__main__':
     
     #umap_reduce(indir,sample,subset,threshold)
     
-    umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist, n_trees)
+    umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist, spread)
 
     #epoch_list,crop_coord = get_umap_limits(indir,sample,subset,threshold)
 

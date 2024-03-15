@@ -76,10 +76,33 @@ def UP_edit_pass(read_seq,max_dist):
     
     return(boolean_pass, ed_dist)
 
+def edit_match(input_seq, target_seq, max_dist):
+    
+    if input_seq == target_seq:
+        dist = 0
+        match = True
+    else:
+        edit = edlib.align(input_seq, target_seq, 'NW', 'path', max_dist)
+        dist = edit['editDistance']
+        if dist >= 0 and dist <= max_dist:
+            cigar = edit['cigar']
+            if 'D' in cigar or 'I' in cigar:
+                match = False
+            else:
+                match = True
+    
+    return(match, dist)
+
+
 def seq_slice(read_seq):
     
-    bc = read_seq[:8]+read_seq[26:33]
+    bc = read_seq[:8] + read_seq[26:33]
     umi = read_seq[33:42]
+    return(bc, umi)
+
+def seq_slice_V15T(read_seq):
+    bc = read_seq[:15]
+    umi = read_seq[25:34]
     return(bc, umi)
 
 def find_sub_fastq_parts(indir,sample):
