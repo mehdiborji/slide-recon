@@ -22,7 +22,7 @@ UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
 filter_poly = True
 
-N_read_extract = 500000
+N_read_extract = 1000
 
 print(N_read_extract)
 
@@ -76,6 +76,63 @@ def UP_edit_pass(read_seq,max_dist):
     
     return(boolean_pass, ed_dist)
 
+def parse_read_struct(input_string):
+    intervals_J = []
+    intervals_N = []
+    intervals_ATCG = []
+
+    current_interval_start = None
+    current_interval_type = None
+
+    for i, char in enumerate(input_string):
+        if char == 'J':
+            if current_interval_type != 'J':
+                if current_interval_type == 'N':
+                    intervals_N.append((current_interval_start, i))
+                elif current_interval_type == 'ATCG':
+                    intervals_ATCG.append((current_interval_start, i))
+                current_interval_start = i
+                current_interval_type = 'J'
+        elif char == 'N':
+            if current_interval_type != 'N':
+                
+                if current_interval_type == 'J':
+                    intervals_J.append((current_interval_start, i))
+                elif current_interval_type == 'ATCG':
+                    intervals_ATCG.append((current_interval_start, i))
+                current_interval_start = i
+                current_interval_type = 'N'
+        elif char in 'ATCG':
+            if current_interval_type != 'ATCG':
+                if current_interval_type == 'J':
+                    intervals_J.append((current_interval_start, i))
+                elif current_interval_type == 'N':
+                    intervals_N.append((current_interval_start, i))
+                current_interval_start = i
+                current_interval_type = 'ATCG'
+        else:
+            if current_interval_type == 'ATCG':
+                intervals_ATCG.append((current_interval_start, i))
+            elif current_interval_type == 'J':
+                intervals_J.append((current_interval_start, i))
+            elif current_interval_type == 'N':
+                intervals_N.append((current_interval_start, i))
+            current_interval_start = None
+            current_interval_type = None
+
+    # Check if the last interval needs to be added
+    if current_interval_type == 'J':
+        intervals_J.append((current_interval_start, len(input_string)))
+    elif current_interval_type == 'N':
+        intervals_N.append((current_interval_start, len(input_string)))
+    elif current_interval_type == 'ATCG':
+        intervals_ATCG.append((current_interval_start, len(input_string)))
+        
+    intervals_dict = {'J': intervals_J, 'N': intervals_N, 'ATCG': intervals_ATCG}
+    
+    return intervals_dict
+
+
 def edit_match(input_seq, target_seq, max_dist):
     
     if input_seq == target_seq:
@@ -88,21 +145,19 @@ def edit_match(input_seq, target_seq, max_dist):
             cigar = edit['cigar']
             if 'D' in cigar or 'I' in cigar:
                 match = False
+                dist = 'indel'
             else:
                 match = True
+        else:
+            match = False
     
     return(match, dist)
 
-
-def seq_slice(read_seq):
+def seq_slice(read_seq, bc_intervals, umi_intervals):
     
-    bc = read_seq[:8] + read_seq[26:33]
-    umi = read_seq[33:42]
-    return(bc, umi)
+    bc = ''.join([seq[intv[0]:intv[1]] for intv in bc_intervals])
+    umi = ''.join([seq[intv[0]:intv[1]] for intv in umi_intervals])
 
-def seq_slice_V15T(read_seq):
-    bc = read_seq[:15]
-    umi = read_seq[25:34]
     return(bc, umi)
 
 def find_sub_fastq_parts(indir,sample):
@@ -114,7 +169,7 @@ def find_sub_fastq_parts(indir,sample):
     
     return parts
 
-def extract_bc_umi_dict(indir,sample,part,limit):
+def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     
     i = 0
     max_dist = 3
@@ -131,9 +186,9 @@ def extract_bc_umi_dict(indir,sample,part,limit):
     anchor_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchor_edits.json'
     target_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_target_edits.json'
     
-    if os.path.isfile(anchors_json):
-        print(anchors_json,' exists, skip')
-        return
+    #if os.path.isfile(anchors_json):
+    #    print(anchors_json,' exists, skip')
+    #    return
     
     anchors_dict = {}
     targets_dict = {}
@@ -143,6 +198,30 @@ def extract_bc_umi_dict(indir,sample,part,limit):
     
     anchors_umi_len_dict = {}
     targets_umi_len_dict = {}
+    
+    read1_intervals = parse_read_struct(read1_struct)
+    read2_intervals = parse_read_struct(read2_struct)
+    
+    r1_bc_intervals = read1_intervals['J']
+    r1_umi_intervals = read1_intervals['N']
+    r1_adapter_intervals = read1_intervals['ATCG']
+    
+    r2_bc_intervals = read2_intervals['J']
+    r2_umi_intervals = read2_intervals['N']
+    r2_adapter_intervals = read2_intervals['ATCG']
+    
+    r1_bc = ''.join([read1_struct[intv[0]:intv[1]] for intv in r1_bc_intervals])
+    r1_umi = ''.join([read1_struct[intv[0]:intv[1]] for intv in r1_umi_intervals])
+    read1_adapters = [read1_struct[intv[0]:intv[1]] for intv in r1_adapter_intervals]
+    
+    r2_bc = ''.join([read2_struct[intv[0]:intv[1]] for intv in r2_bc_intervals])
+    r2_umi = ''.join([read2_struct[intv[0]:intv[1]] for intv in r2_umi_intervals])
+    read2_adapters = [read2_struct[intv[0]:intv[1]] for intv in r2_adapter_intervals]
+
+
+    print('read1 elements', f'BC = {r1_bc}, UMI = {r1_umi}, Adapters = {read1_adapters}')
+    print('read2 elements', f'BC = {r2_bc}, UMI = {r2_umi}, Adapters = {read2_adapters}')
+    
     
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
@@ -155,37 +234,24 @@ def extract_bc_umi_dict(indir,sample,part,limit):
             len1 = len(seq1)
             len2 = len(seq2)
             
-            if filter_poly:
-                
-                polyT_cnt = seq1[42:50].count('T')
-                polyA_cnt = seq2[42:50].count('A')
-
-                if (len1 >= 48 and polyT_cnt>=6) | (len2 >= 48 and polyA_cnt>=6):
-
-                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
-                    seq_counter(anchor_edits_dict,edit1)
-                    seq_counter(target_edits_dict,edit2)
-
-                    if edit_pass1 and edit_pass2:
-
-                        a_bc, a_umi = seq_slice(seq1)
-                        t_bc, t_umi = seq_slice(seq2)
-
-                        seq_counter(anchors_umi_len_dict, len(a_umi))
-                        seq_counter(targets_umi_len_dict, len(t_umi))
-
-                        quad_dict_store(anchors_dict, a_bc, a_umi)
-                        quad_dict_store(targets_dict, t_bc, t_umi)
-
-                    if i>N_read_extract and limit: break
+            r1_adapter_seqs = [seq1[intv[0]:intv[1]] for intv in r1_adapter_intervals]
+            r2_adapter_seqs = [seq2[intv[0]:intv[1]] for intv in r2_adapter_intervals]
             
-            else:
-                
-                edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
-
+            print(seq1,r1_adapter_seqs,seq2,r2_adapter_seqs)
+            adapter_matching = []
+            for aidx, adapter in enumerate(read1_adapters):
+                match, edit = edit_match(r1_adapter_seqs[aidx], adapter, max_dist)
+                adapter_matching.append([match, edit])
+            
+            for aidx, adapter in enumerate(read2_adapters):
+                match, edit = edit_match(r2_adapter_seqs[aidx], adapter, max_dist)
+                adapter_matching.append([match, edit])
+            
+            seq_counter(anchor_edits_dict, f'{adapter_matching[0][1]}_{adapter_matching[1][1]}' )
+            seq_counter(target_edits_dict, f'{adapter_matching[2][1]}_{adapter_matching[3][1]}')
+            print(adapter_matching)
+            
+            """
                 seq_counter(anchor_edits_dict,edit1)
                 seq_counter(target_edits_dict,edit2)
 
@@ -199,8 +265,11 @@ def extract_bc_umi_dict(indir,sample,part,limit):
 
                     quad_dict_store(anchors_dict, a_bc, a_umi)
                     quad_dict_store(targets_dict, t_bc, t_umi)
+            """
 
-                if i>N_read_extract and limit: break
+            if i>N_read_extract and limit: break
+            
+            
             
     with open(anchor_edits_json, 'w') as json_file:
         json.dump(anchor_edits_dict, json_file)
@@ -216,6 +285,7 @@ def extract_bc_umi_dict(indir,sample,part,limit):
         json.dump(anchors_dict, json_file)
     with open(targets_json, 'w') as json_file:
         json.dump(targets_dict, json_file)
+
 
 def extract_quad_dict(indir,sample,part,limit):
     
@@ -238,6 +308,7 @@ def extract_quad_dict(indir,sample,part,limit):
     t_dict = {}
     for bc in t_white: t_dict[bc] = []
     
+    parse_read_struct(input_string)
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
             i+=1
