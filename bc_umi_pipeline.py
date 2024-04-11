@@ -47,6 +47,7 @@ bc_umi_utils.aggregate_dicts(indir,sample,'targets')
 bc_umi_utils.aggregate_stat_dicts(indir,sample,'adapter_edits')
 
 ######################################################
+
 qc_pdf_file = f'{indir}/{sample}/{sample}_QC.pdf'
 
 if os.path.isfile(qc_pdf_file):
@@ -56,6 +57,7 @@ else:
     bc_umi_utils.whitelist_rankplot(indir,sample,'anchors',qc_pdfs,max_anchors)
     bc_umi_utils.whitelist_rankplot(indir,sample,'targets',qc_pdfs,max_targets)
     qc_pdfs.close()
+    
 ######################################################
 
 args = [(indir, sample, part, limit) for part in parts]
@@ -64,6 +66,7 @@ pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()
 pool.join()
+
 ######################################################
 
 bc_umi_utils.save_barcode_batch_json(indir,sample)
@@ -81,5 +84,4 @@ results = pool.starmap(bc_umi_utils.make_count_sparse_mtx_batch, args)
 pool.close()
 pool.join()
 
-"""
-"""
+######################################################
