@@ -33,50 +33,56 @@ spread = args.spread
 #subset = args.subset
 #threshold = args.threshold
 
-def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist, spread):
-    
+def umap_reduce_batches(
+    indir, sample, adata_name, metric, n_neighbors, min_dist, spread
+):
     begin_epoch = 500
     end_epoch = 10000
     step = 500
-    
-    #epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
-    
-    #epoch_list = np.unique(np.logspace(2.5, 3.5, num=100, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
-    
-    epoch_list = np.unique(np.logspace(2, 3.8, num=50, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
 
-    umap_dir = f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_{spread}'
-    
+    # epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
+
+    # epoch_list = np.unique(np.logspace(2.5, 3.5, num=100, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
+
+    epoch_list = np.unique(
+        np.logspace(2, 3.5, num=50, endpoint=True, base=10.0, dtype=int, axis=0)
+    ).tolist()
+
+    umap_dir = f"{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_1"
+
     if not os.path.exists(umap_dir):
         os.makedirs(umap_dir)
-        print(f'{umap_dir} created')
+        print(f"{umap_dir} created")
     else:
-        print(f'{umap_dir} already exists')
-    epoch_zfilled = f'{str(epoch_list[-1]).zfill(6)}'
-    last_umap_csv = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
+        print(f"{umap_dir} already exists")
+    epoch_zfilled = f"{str(epoch_list[-1]).zfill(6)}"
+    last_umap_csv = f"{umap_dir}/{sample}_e_{epoch_zfilled}.csv"
     if os.path.isfile(last_umap_csv):
-        print(last_umap_csv,' exists, skip')
+        print(last_umap_csv, " exists, skip")
         return
-    #adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
-    adata = sc.read(f'{indir}/{sample}/{adata_name}.h5ad')
-    #sc.pp.log1p(adata)
-    reducer = umap.UMAP(metric = metric, 
-                    n_neighbors = n_neighbors, 
-                    min_dist = min_dist, 
-                    spread = spread,
-                    low_memory = False, 
-                    n_components = 2, 
-                    verbose = True, 
-                    n_epochs = epoch_list, 
-                    # output_dens = True, 
-                    # local_connectivity = 30, 
-                    learning_rate = 1)
+    # adata = sc.read(f'{indir}/{sample}/{sample}_counts_filtered.h5ad')
+    adata = sc.read(f"{indir}/{sample}/{adata_name}.h5ad")
+    # sc.pp.log1p(adata)
+    reducer = umap.UMAP(
+        metric=metric,
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        spread=spread,
+        low_memory=False,
+        n_components=2,
+        verbose=True,
+        n_epochs=epoch_list,
+        # output_dens = True,
+        # local_connectivity = 30,
+        learning_rate=1,
+    )
     embedding = reducer.fit_transform(adata.X)
 
-    for i,e in enumerate(epoch_list):
-        epoch_zfilled = f'{str(e).zfill(6)}'
-        epoch_umap = f'{umap_dir}/{sample}_e_{epoch_zfilled}.csv'
-        np.savetxt(epoch_umap, reducer.embedding_list_[i], delimiter=',')
+    for i, e in enumerate(epoch_list):
+        epoch_zfilled = f"{str(e).zfill(6)}"
+        epoch_umap = f"{umap_dir}/{sample}_e_{epoch_zfilled}.csv"
+        np.savetxt(epoch_umap, reducer.embedding_list_[i], delimiter=",")
+
         
 def umap_reduce(indir,sample,subset,threshold,min_t_per_a=5,min_a_per_t=5):
     
