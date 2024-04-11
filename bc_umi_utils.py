@@ -164,8 +164,10 @@ def find_sub_fastq_parts(indir,sample):
     
     pattern = re.compile(r'_R1.part_(.*?)\.fastq')
     all_files = os.listdir(f'{indir}/{sample}/split/')
-    parts = sorted([f.split('.part_')[1].split('.fastq')[0] for f in all_files if pattern.search(f)])
-    parts = sorted(np.unique([f.split('.part_')[1][:3] for f in all_files if pattern.search(f)])) # part + 3 digits because we did split suffix with 3 digits
+    
+    # part + 3 digits because we did split suffix with 3 digits
+    all_parts = [f.split('.part_')[1][:3] for f in all_files if pattern.search(f)]
+    parts = sorted(np.unique(all_parts))
     
     return parts
 
@@ -184,9 +186,9 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     
     adapter_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_adapter_edits.json'
     
-    #if os.path.isfile(anchors_json):
-    #    print(anchors_json,' exists, skip')
-    #    return
+    if os.path.isfile(anchors_json):
+        print(anchors_json,' exists, skip')
+        return
     
     anchors_dict = {}
     targets_dict = {}
@@ -283,7 +285,7 @@ def extract_quad_dict(indir,sample,part,limit):
     if os.path.isfile(quads_json):
         print(quads_json,' exists, skip')
         return
-    """
+    
     a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
     t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
 
@@ -291,27 +293,24 @@ def extract_quad_dict(indir,sample,part,limit):
     for bc in a_white: a_dict[bc] = []
     t_dict = {}
     for bc in t_white: t_dict[bc] = []
-    """
 
     with open(filtered_csv, 'r') as file:
         reader = csv.reader(file)
         for row in reader:
         
-            i+=1
-                    
+            i+=1   
             a_bc, a_umi, t_bc, t_umi = row
             
-
-            #if a_bc in a_dict and t_bc in t_dict:
+            if a_bc in a_dict and t_bc in t_dict:
                 
-            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+                quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
 
             if i>N_read_extract and limit: break
-                        
+      
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)
 
-def aggregate_stat_dicts(indir,sample,position): 
+def aggregate_stat_dicts(indir, sample, position): 
     
     dir_split=f'{indir}/{sample}/split/'
     files=os.listdir(dir_split)
@@ -334,15 +333,8 @@ def aggregate_stat_dicts(indir,sample,position):
                     data_agg[k]=data_sub[k]
                     
     pd.Series(data_agg).to_csv(agg_read_csv)
-
-def paralled_json_agg(json_file_path,data_agg):
-    with open(json_file_path, 'r') as json_file:
-        data_sub = json.load(json_file)
-        print(json_file_path,len(data_sub))
-        for key, value in data_sub.items():
-            data_agg[key].extend(value)
     
-def aggregate_dicts(indir,sample,position): 
+def aggregate_dicts(indir, sample, position): 
     
     dir_split=f'{indir}/{sample}/split/'
     files=os.listdir(dir_split)
@@ -356,19 +348,6 @@ def aggregate_dicts(indir,sample,position):
     
     data_agg = defaultdict(list)
     
-    """
-    args = []
-    for i in tqdm(range(len(jsons[:8]))):
-        args.append((f'{dir_split}{jsons[i]}',data_agg))
-        
-    #print(args)
-    
-    pool = Pool(4)
-    results = pool.starmap(paralled_json_agg, args)
-    pool.close()
-    pool.join()
-    
-    """
     for i in tqdm(range(len(jsons))):
         with open(f'{dir_split}{jsons[i]}', 'r') as json_file:
             data_sub = json.load(json_file)
@@ -390,41 +369,41 @@ def aggregate_dicts(indir,sample,position):
             
     print(f'Total Reads Extracted in {position} = {total_reads/1e6}m')
     
-    umi_cnt=pd.Series(umi_dict)
-    read_cnt=pd.Series(read_dict)
+    umi_cnt = pd.Series(umi_dict)
+    read_cnt = pd.Series(read_dict)
     
     read_cnt.to_csv(agg_read_csv)
     umi_cnt.to_csv(agg_read_csv.replace('read','umi'))
     
 def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=100000):
     
-    read_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv')
-    umi_cnt=pd.read_csv(f'{indir}/{sample}/{sample}_agg_umi_cnt_{position}.csv')
-    umi_cnt.columns=['bc','umi_cnt']
-    read_cnt.columns=['bc','read_cnt']
-    agg_bcs=pd.merge(umi_cnt,read_cnt,left_on='bc',right_on='bc',how='inner')
-    agg_bcs['log10_read_cnt']=np.log10(agg_bcs['read_cnt'])
-    agg_bcs['log10_umi_cnt']=np.log10(agg_bcs['umi_cnt'])
-    agg_bcs['dup_rate']=agg_bcs['read_cnt']/agg_bcs['umi_cnt']
-    agg_bcs=agg_bcs.sort_values(by='umi_cnt',ascending=False)
+    read_cnt = pd.read_csv(f'{indir}/{sample}/{sample}_agg_read_cnt_{position}.csv')
+    umi_cnt = pd.read_csv(f'{indir}/{sample}/{sample}_agg_umi_cnt_{position}.csv')
+    umi_cnt.columns = ['bc','umi_cnt']
+    read_cnt.columns = ['bc','read_cnt']
+    agg_bcs = pd.merge(umi_cnt,read_cnt,left_on='bc',right_on='bc',how='inner')
+    agg_bcs['log10_read_cnt'] = np.log10(agg_bcs['read_cnt'])
+    agg_bcs['log10_umi_cnt'] = np.log10(agg_bcs['umi_cnt'])
+    agg_bcs['dup_rate'] = agg_bcs['read_cnt']/agg_bcs['umi_cnt']
+    agg_bcs = agg_bcs.sort_values(by='umi_cnt',ascending=False)
     
-    sub=agg_bcs.iloc[100:max_expected_barcodes].copy()  # select top max_bc except first 100
+    sub = agg_bcs.iloc[100:max_expected_barcodes].copy()  # select top max_bc except first 100
     x = np.histogram(sub.log10_umi_cnt, 100) # fit a histogram
     smooth = gaussian_filter1d(x[0], 3) # smooth histogram
-    peak_idx,_=find_peaks(-smooth) # find the local minimum
+    peak_idx, _ = find_peaks(-smooth) # find the local minimum
     print(peak_idx,x[1][:-1][peak_idx])
-    mean_hist=(x[1][1:][peak_idx]+x[1][:-1][peak_idx])/2 # take the mid point of point before and after
+    mean_hist = (x[1][1:][peak_idx]+x[1][:-1][peak_idx])/2 # take the mid point of point before and after
     
-    mean_hist=mean_hist[-1] # take the last value in list of local minima (could be more than one)
+    mean_hist = mean_hist[-1] # take the last value in list of local minima (could be more than one)
 
-    wl_df=agg_bcs[agg_bcs.log10_umi_cnt>=mean_hist].copy()
+    wl_df = agg_bcs[agg_bcs.log10_umi_cnt>=mean_hist].copy()
     wl_df.to_csv(f'{indir}/{sample}/{sample}_{position}_wl.csv.gz',compression='infer')
     #wl_reads=wl_df.read_cnt.sum()
-    white_list_size=wl_df.shape[0]
+    white_list_size = wl_df.shape[0]
     
     plt.figure(figsize=(4,3))
-    log10_ranks=np.log10(np.arange(1,len(agg_bcs)+1))
-    log10_cnts=agg_bcs.log10_umi_cnt
+    log10_ranks = np.log10(np.arange(1,len(agg_bcs)+1))
+    log10_cnts = agg_bcs.log10_umi_cnt
     plt.plot(log10_ranks,log10_cnts)#,label='Rank Plot of Reads')
     plt.xlabel('Log10 Ranks')
     plt.ylabel('Log10 UMI Counts')

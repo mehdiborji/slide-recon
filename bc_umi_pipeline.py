@@ -65,7 +65,7 @@ results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()
 pool.join()
 ######################################################
-"""
+
 bc_umi_utils.save_barcode_batch_json(indir,sample)
 bc_umi_utils.aggregate_barcode_batches(indir,sample)
                                      
@@ -81,4 +81,5 @@ results = pool.starmap(bc_umi_utils.make_count_sparse_mtx_batch, args)
 pool.close()
 pool.join()
 
+"""
 """
