@@ -41,9 +41,12 @@ def umap_reduce_batches(indir, sample, adata_name, metric, n_neighbors, min_dist
     
     #epoch_list = np.linspace(begin_epoch,end_epoch,int((end_epoch-begin_epoch)/step)+1).astype('int').tolist()
     
-    epoch_list = np.unique(np.logspace(0, 4, num=500, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
+    #epoch_list = np.unique(np.logspace(2.5, 3.5, num=100, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
+    
+    epoch_list = np.unique(np.logspace(2, 3.8, num=50, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
 
-    umap_dir=f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_{spread}'
+    umap_dir = f'{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_{spread}'
+    
     if not os.path.exists(umap_dir):
         os.makedirs(umap_dir)
         print(f'{umap_dir} created')
