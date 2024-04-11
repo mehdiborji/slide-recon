@@ -4,8 +4,8 @@
 #$ -l os=RedHat7
 #$ -l h_vmem=4G
 #$ -l h_rt=1:0:0
-#$ -pe smp 4
-#$ -binding linear:4
+#$ -pe smp 8
+#$ -binding linear:8
 #$ -terse
 #$ -notify
 #$ -R y
