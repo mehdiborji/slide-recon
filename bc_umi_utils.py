@@ -22,7 +22,7 @@ UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
 filter_poly = True
 
-N_read_extract = 1000
+N_read_extract = 1000000
 
 print(N_read_extract)
 
@@ -155,8 +155,8 @@ def edit_match(input_seq, target_seq, max_dist):
 
 def seq_slice(read_seq, bc_intervals, umi_intervals):
     
-    bc = ''.join([seq[intv[0]:intv[1]] for intv in bc_intervals])
-    umi = ''.join([seq[intv[0]:intv[1]] for intv in umi_intervals])
+    bc = ''.join([read_seq[intv[0]:intv[1]] for intv in bc_intervals])
+    umi = ''.join([read_seq[intv[0]:intv[1]] for intv in umi_intervals])
 
     return(bc, umi)
 
@@ -172,19 +172,17 @@ def find_sub_fastq_parts(indir,sample):
 def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     
     i = 0
-    max_dist = 3
+    max_dist = 2
     
     R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
     R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
     
+    filtered_csv = f'{indir}/{sample}/split/{sample}_part_{part}.csv'
+    
     anchors_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchors.json'
     targets_json = f'{indir}/{sample}/split/{sample}.part_{part}_targets.json'
     
-    anchors_umi_len_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchors_umi_len.json'
-    targets_umi_len_json = f'{indir}/{sample}/split/{sample}.part_{part}_targets_umi_len.json'
-    
-    anchor_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_anchor_edits.json'
-    target_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_target_edits.json'
+    adapter_edits_json = f'{indir}/{sample}/split/{sample}.part_{part}_adapter_edits.json'
     
     #if os.path.isfile(anchors_json):
     #    print(anchors_json,' exists, skip')
@@ -193,11 +191,7 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     anchors_dict = {}
     targets_dict = {}
     
-    anchor_edits_dict = {}
-    target_edits_dict = {}
-    
-    anchors_umi_len_dict = {}
-    targets_umi_len_dict = {}
+    adapter_edits_dict = {}
     
     read1_intervals = parse_read_struct(read1_struct)
     read2_intervals = parse_read_struct(read2_struct)
@@ -218,10 +212,12 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     r2_umi = ''.join([read2_struct[intv[0]:intv[1]] for intv in r2_umi_intervals])
     read2_adapters = [read2_struct[intv[0]:intv[1]] for intv in r2_adapter_intervals]
 
-
     print('read1 elements', f'BC = {r1_bc}, UMI = {r1_umi}, Adapters = {read1_adapters}')
     print('read2 elements', f'BC = {r2_bc}, UMI = {r2_umi}, Adapters = {read2_adapters}')
+
+    csv_file = open(filtered_csv, 'w', newline='')
     
+    writer = csv.writer(csv_file)
     
     with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
         for r1, r2 in tqdm(zip(R1, R2)):
@@ -237,50 +233,39 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
             r1_adapter_seqs = [seq1[intv[0]:intv[1]] for intv in r1_adapter_intervals]
             r2_adapter_seqs = [seq2[intv[0]:intv[1]] for intv in r2_adapter_intervals]
             
-            print(seq1,r1_adapter_seqs,seq2,r2_adapter_seqs)
+            #print(seq1,r1_adapter_seqs,seq2,r2_adapter_seqs)
             adapter_matching = []
+            adapter_edits = []
             for aidx, adapter in enumerate(read1_adapters):
                 match, edit = edit_match(r1_adapter_seqs[aidx], adapter, max_dist)
-                adapter_matching.append([match, edit])
+                adapter_edits.append(str(edit))
+                adapter_matching.append(match)
             
             for aidx, adapter in enumerate(read2_adapters):
                 match, edit = edit_match(r2_adapter_seqs[aidx], adapter, max_dist)
-                adapter_matching.append([match, edit])
+                adapter_edits.append(str(edit))
+                adapter_matching.append(match)
             
-            seq_counter(anchor_edits_dict, f'{adapter_matching[0][1]}_{adapter_matching[1][1]}' )
-            seq_counter(target_edits_dict, f'{adapter_matching[2][1]}_{adapter_matching[3][1]}')
-            print(adapter_matching)
+            seq_counter(adapter_edits_dict, '_'.join(adapter_edits) )
+            #seq_counter(target_edits_dict, f'{adapter_matching[2]}_{adapter_matching[3]}')
+            #print(adapter_matching)
             
-            """
-                seq_counter(anchor_edits_dict,edit1)
-                seq_counter(target_edits_dict,edit2)
-
-                if edit_pass1 and edit_pass2:
-
-                    a_bc, a_umi = seq_slice(seq1)
-                    t_bc, t_umi = seq_slice(seq2)
-
-                    seq_counter(anchors_umi_len_dict, len(a_umi))
-                    seq_counter(targets_umi_len_dict, len(t_umi))
-
-                    quad_dict_store(anchors_dict, a_bc, a_umi)
-                    quad_dict_store(targets_dict, t_bc, t_umi)
-            """
-
+            if all(adapter_matching):
+                a_bc, a_umi = seq_slice(seq1, r1_bc_intervals, r1_umi_intervals)
+                t_bc, t_umi = seq_slice(seq2, r2_bc_intervals, r2_umi_intervals)
+                
+                quad_dict_store(anchors_dict, a_bc, a_umi)
+                quad_dict_store(targets_dict, t_bc, t_umi)
+                
+                writer.writerow([a_bc, a_umi, t_bc, t_umi])
+            
             if i>N_read_extract and limit: break
             
+    csv_file.close()
             
-            
-    with open(anchor_edits_json, 'w') as json_file:
-        json.dump(anchor_edits_dict, json_file)
-    with open(target_edits_json, 'w') as json_file:
-        json.dump(target_edits_dict, json_file)
-        
-    with open(anchors_umi_len_json, 'w') as json_file:
-        json.dump(anchors_umi_len_dict, json_file)
-    with open(targets_umi_len_json, 'w') as json_file:
-        json.dump(targets_umi_len_dict, json_file)
-        
+    with open(adapter_edits_json, 'w') as json_file:
+        json.dump(adapter_edits_dict, json_file)
+    
     with open(anchors_json, 'w') as json_file:
         json.dump(anchors_dict, json_file)
     with open(targets_json, 'w') as json_file:
@@ -291,15 +276,14 @@ def extract_quad_dict(indir,sample,part,limit):
     
     i = 0; max_dist = 3; quad_dict = {}
     
-    R1_fastq = f'{indir}/{sample}/split/{sample}_R1.part_{part}.fastq'
-    R2_fastq = f'{indir}/{sample}/split/{sample}_R2.part_{part}.fastq'
+    filtered_csv = f'{indir}/{sample}/split/{sample}_part_{part}.csv'
     
     quads_json = f'{indir}/{sample}/split/{sample}.part_{part}_quads.json'
     
     if os.path.isfile(quads_json):
         print(quads_json,' exists, skip')
         return
-    
+    """
     a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
     t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
 
@@ -307,36 +291,22 @@ def extract_quad_dict(indir,sample,part,limit):
     for bc in a_white: a_dict[bc] = []
     t_dict = {}
     for bc in t_white: t_dict[bc] = []
-    
-    parse_read_struct(input_string)
-    with pysam.FastxFile(R1_fastq) as R1, pysam.FastxFile(R2_fastq) as R2:
-        for r1, r2 in tqdm(zip(R1, R2)):
+    """
+
+    with open(filtered_csv, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+        
             i+=1
-            
-            seq1 = r1.sequence
-            seq2 = r2.sequence
-            
-            len1 = len(seq1)
-            len2 = len(seq2)
                     
-            a_bc, a_umi = seq_slice(seq1)
-            t_bc, t_umi = seq_slice(seq2)
+            a_bc, a_umi, t_bc, t_umi = row
             
 
-            if a_bc in a_dict and t_bc in t_dict:
+            #if a_bc in a_dict and t_bc in t_dict:
                 
-                polyT_cnt = seq1[42:50].count('T')
-                polyA_cnt = seq2[42:50].count('A')
-                
-                if (len1 >= 48 and polyT_cnt>=6) | (len2 >= 48 and polyA_cnt>=6):
-                    
-                    edit_pass1, edit1 = UP_edit_pass(seq1,max_dist)
-                    edit_pass2, edit2 = UP_edit_pass(seq2,max_dist)
+            quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
 
-                    if edit_pass1 and edit_pass2:
-                        quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
-                        if i>N_read_extract and limit: break
+            if i>N_read_extract and limit: break
                         
     with open(quads_json, 'w') as json_file:
         json.dump(quad_dict, json_file)

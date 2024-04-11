@@ -38,16 +38,13 @@ pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_bc_umi_dict, args)
 pool.close()
 pool.join()
-"""
+
 ######################################################
 
 bc_umi_utils.aggregate_dicts(indir,sample,'anchors')
 bc_umi_utils.aggregate_dicts(indir,sample,'targets')
 
-bc_umi_utils.aggregate_stat_dicts(indir,sample,'anchor_edits')
-bc_umi_utils.aggregate_stat_dicts(indir,sample,'target_edits')
-bc_umi_utils.aggregate_stat_dicts(indir,sample,'anchors_umi_len')
-bc_umi_utils.aggregate_stat_dicts(indir,sample,'targets_umi_len')
+bc_umi_utils.aggregate_stat_dicts(indir,sample,'adapter_edits')
 
 ######################################################
 qc_pdf_file = f'{indir}/{sample}/{sample}_QC.pdf'
@@ -61,12 +58,14 @@ else:
     qc_pdfs.close()
 ######################################################
 
+args = [(indir, sample, part, limit) for part in parts]
+
 pool = Pool(int(cores))
 results = pool.starmap(bc_umi_utils.extract_quad_dict, args)
 pool.close()
 pool.join()
 ######################################################
-
+"""
 bc_umi_utils.save_barcode_batch_json(indir,sample)
 bc_umi_utils.aggregate_barcode_batches(indir,sample)
                                      
