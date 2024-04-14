@@ -20,22 +20,6 @@ cores = args.cores
 #sample = args.sample
 #adata_name = args.adata_name
 
-def get_umap_limits(indir,sample,subset,threshold):
-    
-    umap_added_adata = f'{indir}/{sample}/{sample}_counts_filtered_t_{threshold+1}_s_{subset}_umap_added.h5ad'
-    
-    adata=sc.read(umap_added_adata)
-    
-    adata_epochs=[col.split('_')[1] for col in adata.obs.columns if '_x' in col]    
-    
-    ep_cols=[col for col in adata.obs.columns if 'ep_' in col]
-    min_xy=np.min(adata.obs[ep_cols].values)
-    max_xy=np.max(adata.obs[ep_cols].values)
-    print(min_xy,max_xy)
-    crop_coord=[min_xy,max_xy,min_xy,max_xy]
-    return(adata_epochs,crop_coord)
-
-
 def save_umap_epoch_from_adata(epoch):
     
     input_dir = '/n/scratch/users/m/meb521/recon'
@@ -62,13 +46,11 @@ def save_umap_epoch_from_adata(epoch):
     umap = pd.read_csv(f'{input_dir}/{sample}/{umap_run_name}/{sample}_e_010000_umap_bc.csv.gz',index_col=0)
     barcodes = umap.index
     
-    
     # get cells and pallete from merged barcodes merged with clusters/colors
     
     cells = pd.read_csv(f'{input_dir}/{sample}/H4_2_first_type.csv',index_col=0)
     pallete = pd.read_csv(f'{input_dir}/{sample}/first_type_palette.csv',index_col=0)
     pal_dict = dict(zip(pallete.type,pallete.palette))
-    
     
     # get umap for each epoch of new run
     
