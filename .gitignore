@@ -6,6 +6,8 @@ __pycache__/
 # output related
 pdfs/
 outputs/
+notebooks/
+*.gif
 *.ipynb
 *.png
 *.pdf
