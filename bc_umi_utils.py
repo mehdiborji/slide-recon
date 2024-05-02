@@ -22,7 +22,7 @@ UP_seq = 'TCTTCAGCGTTCCCGAGA'
 
 filter_poly = True
 
-N_read_extract = 1000000
+N_read_extract = 100000
 
 print(N_read_extract)
 
@@ -214,8 +214,8 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     r2_umi = ''.join([read2_struct[intv[0]:intv[1]] for intv in r2_umi_intervals])
     read2_adapters = [read2_struct[intv[0]:intv[1]] for intv in r2_adapter_intervals]
 
-    print('read1 elements', f'BC = {r1_bc}, UMI = {r1_umi}, Adapters = {read1_adapters}')
-    print('read2 elements', f'BC = {r2_bc}, UMI = {r2_umi}, Adapters = {read2_adapters}')
+    #print('read1 elements', f'BC = {r1_bc}, UMI = {r1_umi}, Adapters = {read1_adapters}')
+    #print('read2 elements', f'BC = {r2_bc}, UMI = {r2_umi}, Adapters = {read2_adapters}')
 
     csv_file = open(filtered_csv, 'w', newline='')
     
@@ -264,14 +264,14 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
             if i>N_read_extract and limit: break
             
     csv_file.close()
-            
-    with open(adapter_edits_json, 'w') as json_file:
-        json.dump(adapter_edits_dict, json_file)
     
     with open(anchors_json, 'w') as json_file:
         json.dump(anchors_dict, json_file)
     with open(targets_json, 'w') as json_file:
         json.dump(targets_dict, json_file)
+    # moving this to last action ensures its existense as a good success metric
+    with open(adapter_edits_json, 'w') as json_file:
+        json.dump(adapter_edits_dict, json_file)
 
 
 def extract_quad_dict(indir,sample,part,limit):

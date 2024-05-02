@@ -43,7 +43,6 @@ pool.join()
 
 bc_umi_utils.aggregate_dicts(indir,sample,'anchors')
 bc_umi_utils.aggregate_dicts(indir,sample,'targets')
-
 bc_umi_utils.aggregate_stat_dicts(indir,sample,'adapter_edits')
 
 ######################################################
@@ -57,7 +56,7 @@ else:
     bc_umi_utils.whitelist_rankplot(indir,sample,'anchors',qc_pdfs,max_anchors)
     bc_umi_utils.whitelist_rankplot(indir,sample,'targets',qc_pdfs,max_targets)
     qc_pdfs.close()
-    
+"""
 ######################################################
 
 args = [(indir, sample, part, limit) for part in parts]
@@ -85,3 +84,4 @@ pool.close()
 pool.join()
 
 ######################################################
+"""
