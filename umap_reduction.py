@@ -45,7 +45,7 @@ def umap_reduce_batches(
     # epoch_list = np.unique(np.logspace(2.5, 3.5, num=100, endpoint=True, base=10.0, dtype=int, axis=0)).tolist()
 
     epoch_list = np.unique(
-        np.logspace(2, 3.5, num=50, endpoint=True, base=10.0, dtype=int, axis=0)
+        np.logspace(2.7, 4, num=80, endpoint=True, base=10.0, dtype=int, axis=0)
     ).tolist()
 
     umap_dir = f"{indir}/{sample}/{adata_name}_{metric}_{n_neighbors}_{min_dist}_1"

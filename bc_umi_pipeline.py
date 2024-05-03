@@ -56,7 +56,7 @@ else:
     bc_umi_utils.whitelist_rankplot(indir,sample,'anchors',qc_pdfs,max_anchors)
     bc_umi_utils.whitelist_rankplot(indir,sample,'targets',qc_pdfs,max_targets)
     qc_pdfs.close()
-"""
+
 ######################################################
 
 args = [(indir, sample, part, limit) for part in parts]
@@ -84,4 +84,5 @@ pool.close()
 pool.join()
 
 ######################################################
+"""
 """
