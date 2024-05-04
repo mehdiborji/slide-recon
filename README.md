@@ -8,8 +8,8 @@ python /path/to/slide-recon/bc_umi_pipeline.py \
         -c cores \
         -i input_directory \
         -s sample_name \
-        -ma max_anchors_bcs \
-        -mt max_anchors_bcs \
+        -ma max_r1_bcs \
+        -mt max_r2_bcs \
         -r1 read1_structure \
         -r2 read2_structure
 ```
