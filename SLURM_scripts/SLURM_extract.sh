@@ -1,10 +1,13 @@
 #!/bin/bash
 #SBATCH -c 20
-#SBATCH --mem=120G
-#SBATCH -t 2:50:00
+#SBATCH --mem=60G
+#SBATCH -t 1:50:00
 #SBATCH -p priority
 #SBATCH -o slide_recon_count_job_%A.out
-#SBATCH --account=chen_fec176
+#SBATCH --account=wu_cjw1
+
+#chen_fec176
+#wu_cjw1
 
 echo 'indir =' $1
 echo 'sample =' $2
