@@ -273,43 +273,6 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     with open(adapter_edits_json, 'w') as json_file:
         json.dump(adapter_edits_dict, json_file)
 
-
-def extract_quad_dict(indir,sample,part,limit):
-    
-    i = 0; max_dist = 3; quad_dict = {}
-    
-    filtered_csv = f'{indir}/{sample}/split/{sample}_part_{part}.csv'
-    
-    quads_json = f'{indir}/{sample}/split/{sample}.part_{part}_quads.json'
-    
-    if os.path.isfile(quads_json):
-        print(quads_json,' exists, skip')
-        return
-    
-    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
-    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
-
-    a_dict = {}
-    for bc in a_white: a_dict[bc] = []
-    t_dict = {}
-    for bc in t_white: t_dict[bc] = []
-
-    with open(filtered_csv, 'r') as file:
-        reader = csv.reader(file)
-        for row in reader:
-        
-            i+=1   
-            a_bc, a_umi, t_bc, t_umi = row
-            
-            if a_bc in a_dict and t_bc in t_dict:
-                
-                quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
-
-            if i>N_read_extract and limit: break
-      
-    with open(quads_json, 'w') as json_file:
-        json.dump(quad_dict, json_file)
-
 def aggregate_stat_dicts(indir, sample, position): 
     
     dir_split=f'{indir}/{sample}/split/'
@@ -439,6 +402,63 @@ def whitelist_rankplot(indir,sample,position,qc_pdfs,max_expected_barcodes=10000
     qc_pdfs.savefig(bbox_inches='tight')
     #plt.savefig(f'{indir}/{sample}/{sample}_{position}_duprate.pdf',bbox_inches='tight');
 
+def extract_quad_dict(indir,sample,part,limit):
+    
+    i = 0
+    
+    quad_dict = {}
+    
+    a_white = pd.read_csv(f'{indir}/{sample}/{sample}_anchors_wl.csv.gz')['bc']
+    t_white = pd.read_csv(f'{indir}/{sample}/{sample}_targets_wl.csv.gz')['bc']
+    
+    sub_batch_N = int(len(a_white.index)/30000)+1
+    
+    anchors_split = np.array_split(sorted(a_white), sub_batch_N)
+
+    filtered_csv = f'{indir}/{sample}/split/{sample}_part_{part}.csv'
+    quads_json = f'{indir}/{sample}/split/{sample}.part_{part}_quads.json'
+    
+    batch = str(sub_batch_N).zfill(3)
+    batch_json = quads_json.replace('quads.json',f'batch_{batch}_quads.json')
+    if os.path.isfile(batch_json):
+        print(batch_json,' exists, skip')
+        return
+
+    a_dict = {}
+    for bc in a_white: a_dict[bc] = []
+    t_dict = {}
+    for bc in t_white: t_dict[bc] = []
+
+    with open(filtered_csv, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+        
+            i+=1   
+            a_bc, a_umi, t_bc, t_umi = row
+            
+            if a_bc in a_dict and t_bc in t_dict:
+                
+                quad_dict_store(quad_dict,a_bc,[a_umi,t_bc])
+
+            if i>N_read_extract and limit: break
+            
+    print(len(quad_dict))
+            
+    for j in range(sub_batch_N):
+                
+        batch = str(j+1).zfill(3)
+        batch_json = quads_json.replace('quads.json',f'batch_{batch}_quads.json')
+
+        sub_agg={}
+        for a in anchors_split[j]:
+            if a in quad_dict:
+                sub_agg[a] = quad_dict[a]
+
+        print(batch_json,j,len(sub_agg))
+        with open(batch_json, 'w') as json_file:
+            json.dump(sub_agg, json_file)
+
+        
 def save_barcode_batch_json(indir,sample):
     
     position='quads'
