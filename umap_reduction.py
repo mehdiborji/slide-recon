@@ -132,7 +132,6 @@ def save_umap_epoch_from_adata(indir, sample, epoch, crop_coord, subset, thresho
 
 
 if __name__ == "__main__":
-    
     umap_reduce_batches(
         indir, sample, adata_name, metric, n_neighbors, min_dist, spread
     )
