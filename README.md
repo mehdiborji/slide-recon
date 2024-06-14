@@ -14,6 +14,7 @@ python /path/to/slide-recon/bc_umi_pipeline.py \
         -r2 read2_structure
 ```
 
+
 This pipeline expects two fastq files with format `sample_name_R[1-2]_001.fastq.gz` inside `input_direcory`. These are steps in the pipeline which uses functions within `bc_umi_utils.py` module.
 
 1. Extracting and splitting the fastq files into an intermediate directory with path `input_direcory/sample_name/split`. The number of reads per chunk can be modified with paramter `lines` within `bc_umi_utils.split_fastq_by_lines` function and has default of 10m reads, or 40m lines.
@@ -52,3 +53,20 @@ This pipeline expects two fastq files with format `sample_name_R[1-2]_001.fastq.
 7. Function `aggregate_barcode_batches` aggregates all parts for each of the batches and sotes them in new json files. 
 
 8. Function `make_count_sparse_mtx_batch` takes each batch and stores it in a sparse count matrix.
+
+
+```
+sbatch ~/reconstruction/scripts/SLURM_extract_10x.sh . xBO153_SB_240612_S1 \
+        100000 \
+        100000 \
+        JJJJJJJJJJJJJJJJNNNNNNNNNNNNTTTTTTTTT \
+        JJJJJJJJTCTTCAGCGTTCCCGAGAJJJJJJJNNNNNNNNNAAAAAAA
+
+
+sbatch ~/reconstruction/scripts/SLURM_extract.sh . H8_3_recon \
+        1000000 \
+        1000000 \
+        JJJJJJJJTCTTCAGCGTTCCCGAGAJJJJJJJNNNNNNNNNTTTTTTTTTT \
+        JJJJJJJJTCTTCAGCGTTCCCGAGAJJJJJJJNNNNNNNNNAAAAAAAAAA
+```
+
