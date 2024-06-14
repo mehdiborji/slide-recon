@@ -18,7 +18,7 @@ from collections import defaultdict
 
 UP_seq = "TCTTCAGCGTTCCCGAGA"
 
-N_read_extract = 100000
+N_read_extract = 1000
 print(N_read_extract)
 
 
@@ -47,13 +47,11 @@ def split_fastq_by_lines(indir, sample, lines=4e6):
 
         subprocess.call(f"{command_R1} & {command_R2}", shell=True)
 
-
-def seq_counter(seq_dict, seq_instance):
-    if seq_dict.get(seq_instance) is None:
-        seq_dict[seq_instance] = 1
-    else:
+def seq_counter(seq_dict,seq_instance):
+    if seq_instance in seq_dict:
         seq_dict[seq_instance] += 1
-
+    else:
+        seq_dict[seq_instance] = 1
 
 def quad_dict_store(quad_dict, quad_key, quad_items):
     if quad_dict.get(quad_key) is None:
@@ -208,12 +206,14 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
     read1_adapters = [read1_struct[intv[0] : intv[1]] for intv in r1_adapter_intervals]
     read2_adapters = [read2_struct[intv[0] : intv[1]] for intv in r2_adapter_intervals]
 
+    """
     print(
         "read1 elements", f"BC = {r1_bc}, UMI = {r1_umi}, Adapters = {read1_adapters}"
     )
     print(
         "read2 elements", f"BC = {r2_bc}, UMI = {r2_umi}, Adapters = {read2_adapters}"
     )
+    """
 
     csv_file = open(filtered_csv, "w", newline="")
 
@@ -232,22 +232,23 @@ def extract_bc_umi_dict(indir, sample, part, limit, read1_struct, read2_struct):
             r1_adapter_seqs = [seq1[intv[0] : intv[1]] for intv in r1_adapter_intervals]
             r2_adapter_seqs = [seq2[intv[0] : intv[1]] for intv in r2_adapter_intervals]
 
-            # print(seq1,r1_adapter_seqs,seq2,r2_adapter_seqs)
+            #print(seq1,r1_adapter_seqs,seq2,r2_adapter_seqs)
+            
             adapter_matching = []
             adapter_edits = []
             for aidx, adapter in enumerate(read1_adapters):
+                
                 match, edit = edit_match(r1_adapter_seqs[aidx], adapter, max_dist)
                 adapter_edits.append(str(edit))
                 adapter_matching.append(match)
 
             for aidx, adapter in enumerate(read2_adapters):
+                #print(read2_adapters,r2_adapter_seqs[aidx],adapter)
                 match, edit = edit_match(r2_adapter_seqs[aidx], adapter, max_dist)
                 adapter_edits.append(str(edit))
                 adapter_matching.append(match)
 
             seq_counter(adapter_edits_dict, "_".join(adapter_edits))
-            # seq_counter(target_edits_dict, f'{adapter_matching[2]}_{adapter_matching[3]}')
-            # print(adapter_matching)
 
             if all(adapter_matching):
                 a_bc, a_umi = seq_slice(seq1, r1_bc_intervals, r1_umi_intervals)
